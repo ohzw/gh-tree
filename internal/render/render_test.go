@@ -1,0 +1,233 @@
+package render
+
+import (
+	"bytes"
+	"encoding/json"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/ohzw/gh-tree/internal/model"
+)
+
+const repo = "acme/app"
+
+func issue(n int, title, state, reason string, children ...*model.Node) *model.Node {
+	return &model.Node{Kind: model.KindIssue, Repo: repo, Number: n, Title: title, State: state, StateReason: reason, Children: children}
+}
+
+func pr(n int, title, state string, draft bool, head, base string, children ...*model.Node) *model.Node {
+	return &model.Node{Kind: model.KindPR, Repo: repo, Number: n, Title: title, State: state, IsDraft: draft, Head: head, Base: base, Children: children}
+}
+
+func renderText(t *testing.T, roots []*model.Node, opt Options) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := Text(&b, roots, opt); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
+}
+
+func assertGolden(t *testing.T, got, want string) {
+	t.Helper()
+	want = strings.TrimPrefix(want, "\n")
+	if got != want {
+		t.Errorf("output mismatch\n--- got ---\n%s--- want ---\n%s", got, want)
+	}
+}
+
+func TestTextIssueTree(t *testing.T) {
+	root := issue(1244, "[Epic] Telemetryを判断起点で作り直す\r\n", "OPEN", "",
+		issue(1245, "Bricks の Progression Funnel", "CLOSED", "COMPLETED",
+			pr(1248, "Funnel", "MERGED", false, "feature/1245", "epic/1244"),
+		),
+		issue(1254, "削除と待機イベントの一本化", "OPEN", "REOPENED",
+			pr(1257, "Unify delete", "OPEN", false, "feature/1254", "epic/1244"),
+			pr(1250, "Old attempt", "CLOSED", false, "feature/1254-old", "epic/1244"),
+		),
+		&model.Node{Kind: model.KindIssue, Repo: "other/lib", Number: 7, Title: "Upstream fix", State: "CLOSED", StateReason: "NOT_PLANNED", Labels: []string{"bug", "p1"}},
+		issue(1251, "KO エフェクトの装備の計測", "CLOSED", "DUPLICATE"),
+	)
+	root.Progress = &model.Progress{Completed: 1, Total: 4}
+	root.HiddenClosed = 2
+
+	got := renderText(t, []*model.Node{root}, Options{Repo: repo})
+	assertGolden(t, got, `
+#1244 [Epic] Telemetryを判断起点で作り直す  ● open                  1/4
+├─ #1245 Bricks の Progression Funnel       ✓ closed (completed)
+│  └─ PR #1248 Funnel                       merged                  feature/1245 → epic/1244
+├─ #1254 削除と待機イベントの一本化         ● open (reopened)
+│  ├─ PR #1257 Unify delete                 open                    feature/1254 → epic/1244
+│  └─ PR #1250 Old attempt                  closed                  feature/1254-old → epic/1244
+├─ other/lib#7 Upstream fix [bug] [p1]      ⊘ closed (not planned)
+├─ #1251 KO エフェクトの装備の計測          ⊘ closed (duplicate)
+└─ … closed 2件
+`)
+}
+
+func TestTextWrapsToWidth(t *testing.T) {
+	tree := func() []*model.Node {
+		root := issue(1244, "[Epic] Telemetryを判断起点で作り直す", "OPEN", "",
+			issue(1254, "削除と待機イベントの一本化", "OPEN", "REOPENED",
+				pr(1257, "Unify delete", "OPEN", false, "feature/1254-unify-delete-and-wait", "epic/1244"),
+			),
+			issue(9, "Wait event sampling", "CLOSED", "NOT_PLANNED"),
+		)
+		root.Progress = &model.Progress{Completed: 1, Total: 2}
+		return []*model.Node{root}
+	}
+	full := renderText(t, tree(), Options{Repo: repo})
+	if got := renderText(t, tree(), Options{Repo: repo, Width: 200}); got != full {
+		t.Errorf("width 200 changed the full layout\n%s", got)
+	}
+
+	cases := []struct {
+		width int
+		want  string
+	}{
+		// The PR's head → base moves under it; progress stays beside the state.
+		{72, `
+#1244 [Epic] Telemetryを判断起点で作り直す  ● open                  1/2
+├─ #1254 削除と待機イベントの一本化         ● open (reopened)
+│  └─ PR #1257 Unify delete                 open
+│        feature/1254-unify-delete-and-wait → epic/1244
+└─ #9 Wait event sampling                   ⊘ closed (not planned)
+`},
+		// Titles also wrap inside their column.
+		{55, `
+#1244 [Epic] Telemetryを判  ● open                  1/2
+│  断起点で作り直す
+├─ #1254 削除と待機イベン   ● open (reopened)
+│  │  トの一本化
+│  └─ PR #1257 Unify        open
+│        delete
+│        feature/1254-unify-delete-and-wait → epic/1244
+└─ #9 Wait event sampling   ⊘ closed (not planned)
+`},
+		// State and details go on lines of their own.
+		{44, `
+#1244 [Epic] Telemetryを判断起点で作り直す
+│  ● open  1/2
+├─ #1254 削除と待機イベントの一本化
+│  │  ● open (reopened)
+│  └─ PR #1257 Unify delete
+│        open
+│        feature/1254-unify-delete-and-wait
+│        → epic/1244
+└─ #9 Wait event sampling
+      ⊘ closed (not planned)
+`},
+	}
+	// content drops layout (whitespace and tree glyphs) and order, so only the
+	// characters shown remain: narrowing must never drop any of them.
+	strip := strings.NewReplacer(" ", "", "\n", "", "│", "", "├─", "", "└─", "")
+	content := func(s string) string {
+		rs := []rune(strip.Replace(s))
+		slices.Sort(rs)
+		return string(rs)
+	}
+	for _, c := range cases {
+		got := renderText(t, tree(), Options{Repo: repo, Width: c.width})
+		assertGolden(t, got, c.want)
+		for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+			if w := lipgloss.Width(line); w > c.width {
+				t.Errorf("width %d: line is %d columns: %q", c.width, w, line)
+			}
+		}
+		if content(got) != content(full) {
+			t.Errorf("width %d dropped content\n%s", c.width, got)
+		}
+	}
+}
+
+func TestTextPRForestWithForkAndBranchRoots(t *testing.T) {
+	fork := pr(1270, "Fork contribution", "OPEN", false, "patch-1", "release/2.4")
+	fork.HeadOwner = "someone"
+	roots := []*model.Node{
+		{Kind: model.KindBranch, Name: "develop", Children: []*model.Node{
+			pr(1260, "Release 2.4", "OPEN", false, "release/2.4", "develop", fork),
+		}},
+		{Kind: model.KindBranch, Name: "epic/#1244_telemetry-rebuild-with-a-very-long-name", Children: []*model.Node{
+			pr(1256, "MatchBricksReward の送り元を戻す", "OPEN", true, "feature/#1255_match-bricks-reward", "epic/#1244_telemetry-rebuild-with-a-very-long-name"),
+		}},
+	}
+
+	got := renderText(t, roots, Options{Repo: repo, DefaultBranch: "develop"})
+	assertGolden(t, got, `
+develop
+└─ PR #1260 Release 2.4                             open         release/2.4 → develop
+   └─ PR #1270 Fork contribution                    open         someone:patch-1 → release/2.4
+epic/#1244_telemetry-rebuild-with-a-very-long-name  （PR なし）
+└─ PR #1256 MatchBricksReward の送り元を戻す        draft        feature/#1255_match-bricks-reward → epic/#1244_telemetry-rebuild-with-a-very-long-name
+`)
+}
+
+func TestTextNoColorHasNoEscapes(t *testing.T) {
+	roots := []*model.Node{issue(1, "a", "OPEN", "", pr(2, "b", "MERGED", false, "h", "main"))}
+	if got := renderText(t, roots, Options{Repo: repo}); strings.Contains(got, "\x1b[") {
+		t.Errorf("Color=false output contains escape sequences: %q", got)
+	}
+	if got := renderText(t, roots, Options{Repo: repo, Color: true}); !strings.Contains(got, "\x1b[") {
+		t.Errorf("Color=true output has no escape sequences: %q", got)
+	}
+}
+
+func TestJSON(t *testing.T) {
+	root := issue(1, "Root", "OPEN", "", pr(2, "Fix <thing>", "OPEN", false, "fix", "main"))
+	root.Progress = &model.Progress{Completed: 0, Total: 0}
+	var b bytes.Buffer
+	if err := JSON(&b, repo, []*model.Node{root}); err != nil {
+		t.Fatal(err)
+	}
+	assertGolden(t, b.String(), `
+{
+  "schemaVersion": 1,
+  "repo": "acme/app",
+  "roots": [
+    {
+      "kind": "issue",
+      "repo": "acme/app",
+      "number": 1,
+      "title": "Root",
+      "state": "OPEN",
+      "progress": {
+        "completed": 0,
+        "total": 0
+      },
+      "children": [
+        {
+          "kind": "pr",
+          "repo": "acme/app",
+          "number": 2,
+          "title": "Fix <thing>",
+          "state": "OPEN",
+          "base": "main",
+          "head": "fix",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+`)
+
+	var doc model.Document
+	if err := json.Unmarshal(b.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if root.Children[0].Children != nil {
+		t.Error("JSON mutated the input tree")
+	}
+}
+
+func TestJSONEmptyRoots(t *testing.T) {
+	var b bytes.Buffer
+	if err := JSON(&b, repo, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `"roots": []`) {
+		t.Errorf("nil roots should encode as []: %s", b.String())
+	}
+}
