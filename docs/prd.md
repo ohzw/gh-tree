@@ -123,7 +123,7 @@ epic/#1244_telemetry-rebuild               （PR なし）
   - Issue: `state`、`stateReason`（`enableDuplicate` は付けない。削除予定の引数で、なくても DUPLICATE が返る）、`subIssues`、`subIssuesSummary`、`closedByPullRequestsReferences(userLinkedOnly:false, includeClosedPrs:true)`、`labels`
   - PR: `pullRequests(states:…) { number title state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt closingIssuesReferences{ number repository{nameWithOwner} } labels }`。`headRepository` は fork が消えると null になるので使わない
 - **データの持ち方:** 節点を共通の形にし、表示する tree と同じ入れ子で持ちます。紐づいた PR や Issue も、`kind` を付けて `children` に入れます。
-  - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, labels, progress, children[]`
+  - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, headOwner（fork の PR だけ）, name（branch の名前）, labels, progress, hiddenClosed（--hide-closed で畳んだ数）, children[]`。定義は `internal/model/model.go`
   - JSON はこの形をそのまま出し、先頭に `schemaVersion` を置きます。エージェントが読む前提なので、項目の名前は変えない約束にします。形を変えるときは `schemaVersion` を上げます。
 - **作りの分け方:** 取得（Issue と PR の取得部分）、組み立て（親子や base と head で tree を作る）、表示（tree / JSON）の3つに分ける。表示の部分は Issue と PR で共通にする。
 
