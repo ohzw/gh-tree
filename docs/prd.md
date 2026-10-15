@@ -16,7 +16,7 @@ Issue・PR・branch の関係と、それぞれの GitHub 上の状態を、タ�
 |---|---|
 | Issue tree | Sub-issue の親子関係でたどる tree |
 | PR tree | PR の merge 先の branch（base）と元の branch（head）でつなぐ tree。base が別の PR の head と一致すれば、その PR の子とみなす |
-| 紐づいた PR | Issue の Development 欄に出る PR。手で紐づけた PR と、closing keyword（`Fixes #123` など）で紐づいた PR の両方を含む。merge されずに close された PR も含む |
+| 紐づいた PR | Issue の Development 欄に出る PR。GitHub の判定をそのまま使い、手で紐づけた PR と、closing keyword（`Fixes #123` など）で紐づいた PR の両方を含む。merge されずに close された PR も含む。GitHub は default branch 以外を base にした PR の closing keyword を紐づけとして扱わないため、Epic branch 向けの PR は、Web UI で手で紐づけたものだけが出る。gh-tree は PR の本文を自分では解析しない |
 | 状態 | GitHub が持つ Issue と PR の状態。Issue は open（reopen されたものは理由 reopened）/ closed（理由: completed・not planned・duplicate）、PR は open / draft / merged / closed |
 | 節点 | tree の1要素。Issue、PR、branch（付け先に PR がない branch）のいずれか |
 
