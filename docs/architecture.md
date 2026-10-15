@@ -31,6 +31,10 @@ func (c *Client) PullRequests(ctx context.Context, states []string) ([]model.PR,
 
 // PullRequest は1件の PR を返す。
 func (c *Client) PullRequest(ctx context.Context, number int) (model.PR, error)
+
+// DefaultBranch は既定の branch の名前を返す（defaultBranchRef.name）。空のリポジトリでは ""。
+// pr / branch の tree 表示のときだけ、PullRequests と並行して呼ぶ。
+func (c *Client) DefaultBranch(ctx context.Context) (string, error)
 ```
 
 ## internal/build（組み立て）
@@ -53,7 +57,11 @@ func BranchTree(prs []model.PR, branch string, opt Options) (*model.Node, error)
 
 ## internal/render（表示）
 ```go
-type Options struct{ Color bool }
+type Options struct {
+	Color         bool
+	Repo          string // 表示中の "owner/name"。ほかのリポジトリの Issue と PR は owner/repo#N と出す
+	DefaultBranch string // この名前の branch の節点には「（PR なし）」を付けない
+}
 
 func Text(w io.Writer, roots []*model.Node, opt Options) error
 func JSON(w io.Writer, repo string, roots []*model.Node) error
