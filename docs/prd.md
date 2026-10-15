@@ -16,8 +16,8 @@ Issue・PR・branch の関係と、それぞれの GitHub 上の状態を、タ�
 |---|---|
 | Issue tree | Sub-issue の親子関係でたどる tree |
 | PR tree | PR の merge 先の branch（base）と元の branch（head）でつなぐ tree。base が別の PR の head と一致すれば、その PR の子とみなす |
-| 紐づいた PR | Issue の Development 欄に出る PR。手で紐づけた PR と、closing keyword（`Fixes #123` など）で紐づいた PR の両方を含む |
-| 状態 | GitHub が持つ Issue と PR の状態。Issue は open / closed（理由: completed・not planned・duplicate）、PR は open / draft / merged / closed |
+| 紐づいた PR | Issue の Development 欄に出る PR。手で紐づけた PR と、closing keyword（`Fixes #123` など）で紐づいた PR の両方を含む。merge されずに close された PR も含む |
+| 状態 | GitHub が持つ Issue と PR の状態。Issue は open（reopen されたものは理由 reopened）/ closed（理由: completed・not planned・duplicate）、PR は open / draft / merged / closed |
 | 節点 | tree の1要素。Issue、PR、branch（付け先に PR がない branch）のいずれか |
 
 ## 5. コマンドの形
@@ -49,9 +49,9 @@ pr / branch:
 ### MVP（v0.1）
 | 機能 | 内容 |
 |---|---|
-| `gh tree issue` | Sub-issue を再帰的にたどる。各 Issue に、番号、タイトル、状態（closed なら理由も）、直下の子の完了数（例: `1/4`）を表示する。紐づいた PR は、Issue の子の行として子の Issue より先に並べ、状態と head → base を表示する |
+| `gh tree issue` | Sub-issue を再帰的にたどる。各 Issue に、番号、タイトル、状態（closed なら理由、reopen された open なら `open (reopened)`）、直下の子の完了数（例: `1/4`）を表示する。完了数は `subIssuesSummary` の `completed / total` をそのまま使い、not planned と duplicate で閉じた子も完了に数える。紐づいた PR は、Issue の子の行として子の Issue より先に並べ、状態と head → base を表示する |
 | リポジトリをまたぐ Sub-issue | 別のリポジトリの Issue と PR は `owner/repo#N` と表示する。表示だけで、追加の問い合わせは行わない |
-| `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、head → base を表示する |
+| `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、head → base を表示する。fork の PR の head は `owner:branch` と表示する |
 | `gh tree pr <number>` | 指定した PR から根の branch までの経路と、その PR より下の木を表示する。兄弟の PR は表示しない |
 | `gh tree <number>` | 番号から Issue か PR かを判定し、該当するサブコマンドとして動く |
 | 色分け | Issue と PR の状態ごとに、GitHub の Web UI と同じ系統の色を付ける（7章） |
@@ -104,15 +104,15 @@ epic/#1244_telemetry-rebuild               （PR なし）
 - **PR がない branch:** Epic PR がない branch は、その branch がどこから生えているかを API から知る手段がないため、独立した根にする。`gh tree branch develop` には出ず、`gh tree branch epic/#1244_…` で見る。配下に PR もない branch は表示しない。
 
 ## 8. tree の組み立て規則
-- **PR の親:** PR の base と同じ名前の head を持つ PR を親にする。候補が複数あるときは、open の PR を優先する。open がなければ、候補のうち最も新しく作られた PR を親にする。候補がなければ、base の branch を節点にして、その子にする。
+- **PR の親:** PR の base と同じ名前の head を持つ PR を親にする。親の候補は、同じリポジトリの branch を head にした PR（`isCrossRepository:false`）に限る。fork の PR は子にはなるが、親にはならない。候補が複数あるときは、open の PR を優先する。open がなければ、候補のうち最も新しく作られた PR を親にする。候補がなければ、base の branch を節点にして、その子にする。
 - **循環:** base と head のつながりが循環していたら、循環を見つけた所で切り、その PR を根に置く。
-- **消えた branch:** merge 後に base の branch が消えた PR も、上の規則どおりに置く。表示全体は失敗させない。
+- **消えた branch:** merge 後に base の branch が消えた PR も、上の規則どおりに置く。`baseRefName` と `headRefName` は branch が消えても残るので、これだけを使い、`baseRef` と `headRef`（消えると null）には頼らない。表示全体は失敗させない。
 - **深さ:** `--depth` は根を 0 として数える。紐づいた PR と Issue の行も1段に数える。
 
 ## 9. 非機能要件
-- **性能:** 次の問い合わせ回数で取ります。子が50件の Epic、または open の PR が100件のリポジトリで、2秒以内に表示することを目標にします。
-  - Issue tree は、根の Issue 1件につき GraphQL をおおむね1回（深さ2まで一度に取り、それより深い分はページ送りで追加取得する）。
-  - PR tree は、PR の一覧を1回（ページ送りあり）取って、手元でつなぐ。`--state merged|all` は期間を区切らずに全件を取るので、PR が多いリポジトリでは2秒の目標の対象外とする。
+- **性能:** 次の問い合わせ回数で取ります。子が50件の Epic、または open の PR が100件以下のリポジトリで、3秒以内に表示することを目標にします（API の計測では、取得だけで 0.9〜2.0 秒でした。`docs/api-verification.md`）。
+  - Issue tree は、根の Issue 1件につき GraphQL をおおむね1回。子を `first:100`、孫を `first:20` で深さ2まで一度に取り（cost 約22）、`hasNextPage` の子と、それより深い分だけを追加で取得する。
+  - PR tree は、PR の一覧を `first:100` のページ送りで取って、手元でつなぐ。ページ送りは順番にしか取れないため、open の PR が100件を超えるリポジトリ（1,000件で約10秒）と、期間を区切らずに全件を取る `--state merged|all` は、3秒の目標の対象外とする。
 - **認証:** `gh` の認証をそのまま使う。必要な scope は `repo` だけ。足りないときは、その旨と対処を表示する。
 - **設定:** 設定ファイルは持たない。設定なしで、どのリポジトリでも同じように動く。
 - **配布:** Go で作り、コンパイル済みの extension として配る（`gh extension install owner/gh-tree`）。名前は `gh-tree` のままにする。npm に、ファイル構成を表示する同名の CLI（[mgks/GitHubTree](https://github.com/mgks/GitHubTree)）があるため、README の冒頭で何の tree を表示するかを明記する。
@@ -120,8 +120,8 @@ epic/#1244_telemetry-rebuild               （PR なし）
 ## 10. 技術方針
 - **言語:** Go と `cli/go-gh`（認証、リポジトリの判定、GraphQL クライアント、表示幅と色の扱い）。表示には `lipgloss` などを使う。
 - **API:**
-  - Issue: `state`、`stateReason`、`subIssues`、`subIssuesSummary`、`closedByPullRequestsReferences(userLinkedOnly:false)`、`labels`
-  - PR: `pullRequests(states:…) { number title state isDraft baseRefName headRefName createdAt closingIssuesReferences labels }`
+  - Issue: `state`、`stateReason`（`enableDuplicate` は付けない。削除予定の引数で、なくても DUPLICATE が返る）、`subIssues`、`subIssuesSummary`、`closedByPullRequestsReferences(userLinkedOnly:false, includeClosedPrs:true)`、`labels`
+  - PR: `pullRequests(states:…) { number title state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt closingIssuesReferences{ number repository{nameWithOwner} } labels }`。`headRepository` は fork が消えると null になるので使わない
 - **データの持ち方:** 節点を共通の形にし、表示する tree と同じ入れ子で持ちます。紐づいた PR や Issue も、`kind` を付けて `children` に入れます。
   - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, labels, progress, children[]`
   - JSON はこの形をそのまま出し、先頭に `schemaVersion` を置きます。エージェントが読む前提なので、項目の名前は変えない約束にします。形を変えるときは `schemaVersion` を上げます。
@@ -129,9 +129,9 @@ epic/#1244_telemetry-rebuild               （PR なし）
 
 ## 11. 受け入れ条件（MVP）
 - [ ] `gh tree issue 1244` で、Sub-issue の tree・状態（closed の理由を含む）・紐づいた PR・直下の子の完了数が色付きで出る。紐づいた PR は、Issue の子の行として出る。
-- [ ] 手で紐づけた PR と、closing keyword で紐づいた PR の両方が、紐づいた PR として出る。
+- [ ] 手で紐づけた PR、closing keyword で紐づいた PR、merge されずに close された PR が、紐づいた PR として出る。
 - [ ] 別のリポジトリの Sub-issue が `owner/repo#N` として出る。
-- [ ] `gh tree pr` で、open の PR が base と head でつながった tree で出る。Epic PR がない Epic branch は、独立した根の節点として出る。
+- [ ] `gh tree pr` で、open の PR が base と head でつながった tree で出る。Epic PR がない Epic branch は、独立した根の節点として出る。fork の PR は親にならない。
 - [ ] `gh tree branch epic/#1244_…` で、その branch を根にした PR tree が出る。
 - [ ] `gh tree pr 1257` で、根の branch までの経路と、その PR より下の木だけが出る。
 - [ ] `gh tree 1257` と `gh tree 1244` で、Issue か PR かを判定して表示する。
