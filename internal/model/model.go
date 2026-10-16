@@ -58,6 +58,13 @@ type Node struct {
 	// HiddenClosed counts closed sub-issues folded by --hide-closed.
 	HiddenClosed int `json:"hiddenClosed,omitempty"`
 
+	// OmittedChildren counts sub-issues of an ancestor that are not shown
+	// because they are off the path to the requested issue.
+	OmittedChildren int `json:"omittedChildren,omitempty"`
+
+	// Focus marks the requested issue when its ancestors are shown above it.
+	Focus bool `json:"focus,omitempty"`
+
 	Children []*Node `json:"children"`
 }
 

@@ -34,7 +34,8 @@ func withIssues(p model.PR, nums ...int) model.PR {
 }
 
 // outline renders nodes as one line per node, indented two spaces per level:
-// "branch NAME", "pr #N", or "issue #N", plus "+hidden=N" and "[labels]" when set.
+// "branch NAME", "pr #N", or "issue #N", plus "+hidden=N", "+omitted=N",
+// "*focus", and "[labels]" when set.
 func outline(roots ...*model.Node) string {
 	var b strings.Builder
 	var walk func(n *model.Node, depth int)
@@ -48,6 +49,12 @@ func outline(roots ...*model.Node) string {
 		}
 		if n.HiddenClosed > 0 {
 			fmt.Fprintf(&b, " +hidden=%d", n.HiddenClosed)
+		}
+		if n.OmittedChildren > 0 {
+			fmt.Fprintf(&b, " +omitted=%d", n.OmittedChildren)
+		}
+		if n.Focus {
+			b.WriteString(" *focus")
 		}
 		if len(n.Labels) > 0 {
 			fmt.Fprintf(&b, " [%s]", strings.Join(n.Labels, ","))
@@ -458,5 +465,62 @@ func TestIssueTreeProgressAndState(t *testing.T) {
 	c := n.Children[0]
 	if c.Progress != nil || c.Repo != "x/y" || c.StateReason != "NOT_PLANNED" || c.Children == nil {
 		t.Errorf("child = %+v", c)
+	}
+}
+
+func TestIssueTreeAncestors(t *testing.T) {
+	ancestor := func(num, completed, total int) *model.Issue {
+		return &model.Issue{IssueRef: model.IssueRef{Repo: repo, Number: num, State: "OPEN"}, Progress: &model.Progress{Completed: completed, Total: total}}
+	}
+	focus := func() *model.Issue {
+		return &model.Issue{
+			IssueRef:  model.IssueRef{Repo: repo, Number: 7, State: "OPEN"},
+			LinkedPRs: []model.PR{pr(20, "h", "b", "OPEN", 0)},
+			SubIssues: []*model.Issue{{IssueRef: model.IssueRef{Repo: repo, Number: 8, State: "OPEN"}}},
+			Ancestors: []*model.Issue{ancestor(1, 2, 8), ancestor(3, 1, 1)},
+		}
+	}
+
+	tests := []struct {
+		name string
+		opt  Options
+		want string
+	}{
+		{
+			name: "outermost ancestor is the root; off-path siblings are counted",
+			opt:  Options{Depth: -1, Ancestors: true},
+			want: lines(
+				"issue #1 +omitted=7",
+				"  issue #3",
+				"    issue #7 *focus",
+				"      pr #20",
+				"      issue #8",
+			),
+		},
+		{
+			name: "depth counts from the requested issue, not the outermost ancestor",
+			opt:  Options{Depth: 0, Ancestors: true},
+			want: lines(
+				"issue #1 +omitted=7",
+				"  issue #3",
+				"    issue #7 *focus",
+			),
+		},
+		{
+			name: "without Ancestors the requested issue is the root",
+			opt:  Options{Depth: -1},
+			want: lines(
+				"issue #7",
+				"  pr #20",
+				"  issue #8",
+			),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := outline(IssueTree(focus(), tt.opt)); got != tt.want {
+				t.Errorf("got:\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
 	}
 }

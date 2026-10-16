@@ -17,6 +17,7 @@ type Options struct {
 	HideClosed bool     // closed の Sub-issue を親の HiddenClosed に畳む
 	WithIssues bool     // PR の子として ClosingIssues を出す（--issues）
 	Labels     []string // 節点に残すラベル。空なら Labels は空
+	Ancestors  bool     // Issue tree の上に、指定した Issue の祖先の経路を出す。Depth は指定した Issue から数える
 }
 
 // within reports whether a node at level (root = 0) is shown.
@@ -25,12 +26,32 @@ func (o Options) within(level int) bool {
 }
 
 // IssueTree builds the tree of root: each issue lists its linked PRs first,
-// then its sub-issues in input order.
+// then its sub-issues in input order. With opt.Ancestors and a parent chain,
+// the result is rooted at the outermost ancestor: each ancestor holds only
+// the next issue on the path (the rest counted in OmittedChildren), and root
+// is marked Focus.
 func IssueTree(root *model.Issue, opt Options) *model.Node {
 	if root == nil {
 		return nil
 	}
-	return issueTree(root, 0, opt, newLabelFilter(opt.Labels))
+	lf := newLabelFilter(opt.Labels)
+	n := issueTree(root, 0, opt, lf)
+	if !opt.Ancestors || len(root.Ancestors) == 0 {
+		return n
+	}
+	n.Focus = true
+	for i := len(root.Ancestors) - 1; i >= 0; i-- {
+		a := root.Ancestors[i]
+		p := issueNode(a.IssueRef, lf)
+		if a.Progress != nil {
+			pr := *a.Progress
+			p.Progress = &pr
+			p.OmittedChildren = max(pr.Total-1, 0)
+		}
+		p.Children = []*model.Node{n}
+		n = p
+	}
+	return n
 }
 
 func issueTree(is *model.Issue, level int, opt Options, lf labelFilter) *model.Node {
