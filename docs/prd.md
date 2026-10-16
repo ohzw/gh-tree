@@ -51,10 +51,10 @@ pr / branch:
 ### MVP（v0.1）
 | 機能 | 内容 |
 |---|---|
-| `gh tree issue` | Sub-issue を再帰的にたどる。各 Issue に、番号、タイトル、状態（closed なら理由、reopen された open なら `open (reopened)`）、直下の子の完了数（例: `1/4`）を表示する。完了数は `subIssuesSummary` の `completed / total` をそのまま使い、not planned と duplicate で閉じた子も完了に数える。紐づいた PR は、Issue の子の行として子の Issue より先に並べ、状態と head → base を表示する |
+| `gh tree issue` | Sub-issue を再帰的にたどる。各 Issue に、番号、タイトル、状態（open なら `open`、reopen された open なら `reopened`、closed なら理由の `completed`・`not planned`・`duplicate`、理由がなければ `closed`）、直下の子の完了数（例: `1/4`。状態の横に付ける）を表示する。完了数は `subIssuesSummary` の `completed / total` をそのまま使い、not planned と duplicate で閉じた子も完了に数える。紐づいた PR は、Issue の子の行として子の Issue より先に並べ、状態と head → base を表示する |
 | リポジトリをまたぐ Sub-issue | 別のリポジトリの Issue と PR は `owner/repo#N` と表示する。表示だけで、追加の問い合わせは行わない |
 | Issue の祖先 | 指定した Issue に親があれば、一番上の祖先を根にして、指定した Issue までの経路を既定で表示する。経路上の祖先には、ほかの子を出さずに件数だけ示す（例: `└─ … 他 7件`）。祖先の行には完了数を出し、紐づいた PR は出さない。指定した Issue には行頭に `▶` を付けて太字にする。`--depth` は指定した Issue から数える。`--no-ancestors` で消せる。PR を指定したときは、PR が閉じる Issue の親はたどらない |
-| `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、head → base を表示する。fork の PR の head は `owner:branch` と表示する |
+| `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、head を表示する。親の節点が base なので base は出さない。親が base でない PR（循環を切って根に置いた PR など）には head → base を表示する。fork の PR の head は `owner:branch` と表示する |
 | `gh tree pr <number>` | 指定した PR から根の branch までの経路と、その PR より下の木を表示する。兄弟の PR は表示しない |
 | `gh tree <number>` | 番号から Issue か PR かを判定し、該当するサブコマンドとして動く |
 | 色分け | Issue と PR の状態ごとに、GitHub の Web UI と同じ系統の色を付ける（7章） |
@@ -79,8 +79,8 @@ pr / branch:
 ## 7. 表示の仕様（例）
 ```
 $ gh tree issue 1244
-#1244 [Epic] Telemetryを判断起点で作り直す   ● open             1/4
-├─ #1245 Bricks の Progression Funnel      ✓ closed (completed)
+#1244 [Epic] Telemetryを判断起点で作り直す   ● open 1/4
+├─ #1245 Bricks の Progression Funnel      ✓ completed
 │  └─ PR #1248  merged  feature/#1245_… → epic/#1244_…
 ├─ #1254 削除と待機イベントの一本化         ● open
 │  └─ PR #1257  open    feature/#1254_… → epic/#1244_…
@@ -90,19 +90,20 @@ $ gh tree issue 1244
 
 $ gh tree pr
 develop
-└─ PR #1260 Release 2.4                    open   release/2.4 → develop
+└─ PR #1260 Release 2.4                    open   release/2.4
 epic/#1244_telemetry-rebuild               （PR なし）
-├─ PR #1256 MatchBricksReward の送り元を戻す  draft  feature/#1255_… → epic/#1244_…
-└─ PR #1257 削除と待機イベントの一本化         open   feature/#1254_… → epic/#1244_…
+├─ PR #1256 MatchBricksReward の送り元を戻す  draft  feature/#1255_…
+└─ PR #1257 削除と待機イベントの一本化         open   feature/#1254_…
 
 $ gh tree branch epic/#1244_telemetry-rebuild --issues
 epic/#1244_telemetry-rebuild               （PR なし）
-├─ PR #1256 MatchBricksReward の送り元を戻す  draft  feature/#1255_… → epic/#1244_…
+├─ PR #1256 MatchBricksReward の送り元を戻す  draft  feature/#1255_…
 │  └─ #1255 MatchBricksReward の送り元を戻す  ● open
-└─ PR #1257 削除と待機イベントの一本化         open   feature/#1254_… → epic/#1244_…
+└─ PR #1257 削除と待機イベントの一本化         open   feature/#1254_…
    └─ #1254 削除と待機イベントの一本化         ● open
 ```
-- **Issue の状態の色:** open は緑、closed (completed) は紫、closed (not planned / duplicate) は灰。
+- **Issue の状態の色:** open と reopened は緑、completed と closed は紫、not planned と duplicate は灰。
+- **狭いターミナル:** 情報は省かずに行を増やす。タイトルを列の中で折り返し、次に PR の head → base を PR の下の行に移し、それでも列の幅が足りない節点はタイトルを幅いっぱいに出して状態と詳細を下の行に移す（多くの節点がそうなるときは全節点をそろえる）。節点の続きの行は子の行より深く字下げする。アイコンは語から離さず、CJK の1文字だけを最後の行に残さない。
 - **PR の状態の色:** open は緑、draft は灰、merged は紫、closed（merge なし）は赤。
 - **PR がない branch:** Epic PR がない branch は、その branch がどこから生えているかを API から知る手段がないため、独立した根にする。`gh tree branch develop` には出ず、`gh tree branch epic/#1244_…` で見る。配下に PR もない branch は表示しない。
 

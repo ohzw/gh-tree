@@ -30,11 +30,13 @@ gh tree                              ヘルプを表示する
 | `--state open\|merged\|all` | pr / branch | 表示する PR（既定: open） |
 | `--issues` | pr / branch | 各 PR に紐づいた Issue を PR の子として表示する |
 
-PR は、base と同じ名前の head を持つ PR の子になります。付け先に PR がない branch は独立した根の節点になり、既定の branch 以外には `（PR なし）` が付きます。
+PR は、base と同じ名前の head を持つ PR の子になります。付け先に PR がない branch は独立した根の節点になり、既定の branch 以外には `（PR なし）` が付きます。親の節点がそのまま base になっている PR（PR tree のほとんどの PR）には head だけを出し、それ以外（Issue tree の PR など）には `head → base` を出します。
 
 Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じものです。GitHub は default branch 以外を base にした PR の `Fixes #N` を紐づけとして扱わないため、Epic branch などに向けた PR を Issue tree に出すには、Web UI の Development 欄で手で紐づけてください。
 
-ターミナルの幅に収まらないときも、情報は省かずに行を増やします。まずタイトルを列の中で折り返し、次に PR の `head → base` を PR の下の行に移し、それでも狭いときは状態と詳細を各節点の下の行に移します。パイプやリダイレクトに出すときは折り返しません。
+Issue の状態は、`open`・`reopened`・`completed`・`closed`（理由なし）・`not planned`・`duplicate` と出します。完了数（`1/4`）は状態の横に付けます。
+
+ターミナルの幅に収まらないときも、情報は省かずに行を増やします。まずタイトルを列の中で折り返し、次に PR の `head → base` を PR の下の行に移します。それでも列の幅が足りない節点は、タイトルを幅いっぱいに出し、その下の行に状態と詳細を移します（節点の多くがそうなるときは全節点をこの形にそろえます）。節点の続きの行は子の行より深く字下げするので、子と見分けられます。パイプやリダイレクトに出すときは折り返しません。
 
 Issue に親があるときは、一番上の祖先から指定した Issue（`▶` 付き）までの経路を上に表示します。経路にない子は `他 N件` とまとめます。
 
@@ -42,17 +44,29 @@ Issue に親があるときは、一番上の祖先から指定した Issue（`�
 
 ```
 $ gh tree issue 1244 --no-icons
-#1244 [Epic] Telemetryを判断起点で作り直す  ● open                1/4
-├─ #1245 Bricks の Progression Funnel       ✓ closed (completed)
-│  └─ PR #1248 Funnel                       merged                feature/1245 → epic/1244
+#1244 [Epic] Telemetryを判断起点で作り直す  ● open 1/4
+├─ #1245 Bricks の Progression Funnel       ✓ completed
+│  └─ PR #1248 Funnel                       merged       feature/1245 → epic/1244
 └─ #1254 削除と待機イベントの一本化         ● open
-   └─ PR #1257 Unify delete                 open                  feature/1254 → epic/1244
+   └─ PR #1257 Unify delete                 open         feature/1254 → epic/1244
+
+$ gh tree issue 1244 --no-icons        # 幅 40 のターミナル
+#1244 [Epic] Telemetryを判   ● open 1/4
+│    断起点で作り直す
+├─ #1245 Bricks の Progression Funnel
+│  │    ✓ completed
+│  └─ PR #1248 Funnel        merged
+│          feature/1245 → epic/1244
+└─ #1254 削除と待機イベントの一本化
+   │    ● open
+   └─ PR #1257 Unify delete  open
+           feature/1254 → epic/1244
 
 $ gh tree pr --no-icons
 main
-└─ PR #1260 Release 2.4   open         release/2.4 → main
+└─ PR #1260 Release 2.4   open         release/2.4
 epic/1244                 （PR なし）
-└─ PR #1257 Unify delete  open         feature/1254 → epic/1244
+└─ PR #1257 Unify delete  open         feature/1254
 ```
 
 ## JSON

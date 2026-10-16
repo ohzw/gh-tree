@@ -55,14 +55,14 @@ func TestTextIssueTree(t *testing.T) {
 
 	got := renderText(t, []*model.Node{root}, Options{Repo: repo})
 	assertGolden(t, got, `
-#1244 [Epic] Telemetryを判断起点で作り直す  ● open                  1/4
-├─ #1245 Bricks の Progression Funnel       ✓ closed (completed)
-│  └─ PR #1248 Funnel                       merged                  feature/1245 → epic/1244
-├─ #1254 削除と待機イベントの一本化         ● open (reopened)
-│  ├─ PR #1257 Unify delete                 open                    feature/1254 → epic/1244
-│  └─ PR #1250 Old attempt                  closed                  feature/1254-old → epic/1244
-├─ other/lib#7 Upstream fix [bug] [p1]      ⊘ closed (not planned)
-├─ #1251 KO エフェクトの装備の計測          ⊘ closed (duplicate)
+#1244 [Epic] Telemetryを判断起点で作り直す  ● open 1/4
+├─ #1245 Bricks の Progression Funnel       ✓ completed
+│  └─ PR #1248 Funnel                       merged         feature/1245 → epic/1244
+├─ #1254 削除と待機イベントの一本化         ● reopened
+│  ├─ PR #1257 Unify delete                 open           feature/1254 → epic/1244
+│  └─ PR #1250 Old attempt                  closed         feature/1254-old → epic/1244
+├─ other/lib#7 Upstream fix [bug] [p1]      ⊘ not planned
+├─ #1251 KO エフェクトの装備の計測          ⊘ duplicate
 └─ … closed 2件
 `)
 }
@@ -87,37 +87,54 @@ func TestTextWrapsToWidth(t *testing.T) {
 		width int
 		want  string
 	}{
-		// The PR's head → base moves under it; progress stays beside the state.
+		// The PR's head → base moves under it, indented past the PR's own
+		// children.
 		{72, `
-#1244 [Epic] Telemetryを判断起点で作り直す  ● open                  1/2
-├─ #1254 削除と待機イベントの一本化         ● open (reopened)
+#1244 [Epic] Telemetryを判断起点で作り直す  ● open 1/2
+├─ #1254 削除と待機イベントの一本化         ● reopened
 │  └─ PR #1257 Unify delete                 open
-│        feature/1254-unify-delete-and-wait → epic/1244
-└─ #9 Wait event sampling                   ⊘ closed (not planned)
+│          feature/1254-unify-delete-and-wait → epic/1244
+└─ #9 Wait event sampling                   ⊘ not planned
 `},
-		// Titles also wrap inside their column.
+		// Titles also wrap inside their column, never leaving one CJK
+		// character alone; head → base breaks before the arrow.
 		{55, `
-#1244 [Epic] Telemetryを判  ● open                  1/2
-│  断起点で作り直す
-├─ #1254 削除と待機イベン   ● open (reopened)
-│  │  トの一本化
-│  └─ PR #1257 Unify        open
-│        delete
-│        feature/1254-unify-delete-and-wait → epic/1244
-└─ #9 Wait event sampling   ⊘ closed (not planned)
+#1244 [Epic] Telemetryを判断起点で作り    ● open 1/2
+│    直す
+├─ #1254 削除と待機イベントの一本化       ● reopened
+│  └─ PR #1257 Unify delete               open
+│          feature/1254-unify-delete-and-wait
+│          → epic/1244
+└─ #9 Wait event sampling                 ⊘ not planned
 `},
-		// State and details go on lines of their own.
-		{44, `
-#1244 [Epic] Telemetryを判断起点で作り直す
-│  ● open  1/2
+		// Rows too deep for a useful column become cards; rows that still
+		// fit keep the column.
+		{40, `
+#1244 [Epic] Telemetryを   ● open 1/2
+│    判断起点で作り直す
 ├─ #1254 削除と待機イベントの一本化
-│  │  ● open (reopened)
+│  │    ● reopened
 │  └─ PR #1257 Unify delete
-│        open
-│        feature/1254-unify-delete-and-wait
-│        → epic/1244
+│          open
+│          feature/1254-unify-delete-
+│          and-wait → epic/1244
+└─ #9 Wait event sampling  ⊘ not planned
+`},
+		// Most rows are cards, so all are; long branch names break at
+		// their seams.
+		{36, `
+#1244 [Epic] Telemetryを判断起点で作
+│    り直す
+│    ● open 1/2
+├─ #1254 削除と待機イベントの一本化
+│  │    ● reopened
+│  └─ PR #1257 Unify delete
+│          open
+│          feature/1254-unify-
+│          delete-and-wait
+│          → epic/1244
 └─ #9 Wait event sampling
-      ⊘ closed (not planned)
+        ⊘ not planned
 `},
 	}
 	// content drops layout (whitespace and tree glyphs) and order, so only the
@@ -140,6 +157,21 @@ func TestTextWrapsToWidth(t *testing.T) {
 			t.Errorf("width %d dropped content\n%s", c.width, got)
 		}
 	}
+
+	// An icon stays with its word at every width.
+	for width := 24; width <= 80; width++ {
+		roots := tree()
+		roots[0].Labels = []string{"epic", "telemetry"}
+		got := renderText(t, roots, Options{Repo: repo, Width: width, Icons: true})
+		for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+			if w := lipgloss.Width(line); w > width {
+				t.Errorf("icons, width %d: line is %d columns: %q", width, w, line)
+			}
+			if rs := []rune(strings.TrimRight(line, " ")); len(rs) > 0 && rs[len(rs)-1] >= '\ue000' && rs[len(rs)-1] <= '\uf8ff' {
+				t.Errorf("icons, width %d: line ends with an icon: %q", width, line)
+			}
+		}
+	}
 }
 
 func TestTextIconsPerState(t *testing.T) {
@@ -160,10 +192,11 @@ func TestTextIconsPerState(t *testing.T) {
 		want []string // substrings that must appear
 	}{
 		{"issue open", issue(1, "a", "OPEN", ""), []string{"\uf41b open"}},
-		{"issue reopened", issue(1, "a", "OPEN", "REOPENED"), []string{"\uf41c open (reopened)"}},
-		{"issue completed", issue(1, "a", "CLOSED", "COMPLETED"), []string{"\uf41d closed (completed)"}},
-		{"issue not planned", issue(1, "a", "CLOSED", "NOT_PLANNED"), []string{"\uf517 closed (not planned)"}},
-		{"issue duplicate", issue(1, "a", "CLOSED", "DUPLICATE"), []string{"\uf4c4 closed (duplicate)"}},
+		{"issue reopened", issue(1, "a", "OPEN", "REOPENED"), []string{"\uf41c reopened"}},
+		{"issue completed", issue(1, "a", "CLOSED", "COMPLETED"), []string{"\uf41d completed"}},
+		{"issue not planned", issue(1, "a", "CLOSED", "NOT_PLANNED"), []string{"\uf517 not planned"}},
+		{"issue duplicate", issue(1, "a", "CLOSED", "DUPLICATE"), []string{"\uf4c4 duplicate"}},
+		{"issue closed without a reason", issue(1, "a", "CLOSED", ""), []string{"\uf41d closed"}},
 		{"pr open", pr(1, "a", "OPEN", false, "h", "main"), []string{"\uf407 #1", "open", "\uf418 h → main"}},
 		{"pr draft", pr(1, "a", "OPEN", true, "h", "main"), []string{"\uf4dd #1", "draft"}},
 		{"pr merged", pr(1, "a", "MERGED", false, "h", "main"), []string{"\uf419 #1", "merged"}},
@@ -202,14 +235,24 @@ func TestTextPRForestWithForkAndBranchRoots(t *testing.T) {
 		}},
 	}
 
+	// A PR under its base (a branch node or the PR with that head) shows
+	// only its head; the tree already shows the base.
 	got := renderText(t, roots, Options{Repo: repo, DefaultBranch: "develop"})
 	assertGolden(t, got, `
 develop
-└─ PR #1260 Release 2.4                             open         release/2.4 → develop
-   └─ PR #1270 Fork contribution                    open         someone:patch-1 → release/2.4
+└─ PR #1260 Release 2.4                             open         release/2.4
+   └─ PR #1270 Fork contribution                    open         someone:patch-1
 epic/#1244_telemetry-rebuild-with-a-very-long-name  （PR なし）
-└─ PR #1256 MatchBricksReward の送り元を戻す        draft        feature/#1255_match-bricks-reward → epic/#1244_telemetry-rebuild-with-a-very-long-name
+└─ PR #1256 MatchBricksReward の送り元を戻す        draft        feature/#1255_match-bricks-reward
 `)
+}
+
+func TestTextPRUnderIssueShowsBase(t *testing.T) {
+	roots := []*model.Node{issue(1, "Epic", "OPEN", "", pr(2, "Fix", "OPEN", false, "fix", "epic/1"))}
+	got := renderText(t, roots, Options{Repo: repo})
+	if !strings.Contains(got, "fix → epic/1") {
+		t.Errorf("PR under an issue lost its base:\n%s", got)
+	}
 }
 
 func TestTextNoColorHasNoEscapes(t *testing.T) {
