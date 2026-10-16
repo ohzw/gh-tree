@@ -33,7 +33,27 @@ const (
 		` subIssuesSummary{total completed}` +
 		` closedByPullRequestsReferences(first:10,userLinkedOnly:false,includeClosedPrs:true){pageInfo{hasNextPage endCursor} nodes{...TreePR}}}`
 	treeFragments = treeIssueFragment + "\n" + treePRFragment
+
+	// ancestorLevels is how many parents one query walks up. The level after
+	// the last selects only the id, to tell whether more remain.
+	ancestorLevels   = 5
+	ancestorFragment = `fragment AncestorIssue on Issue{id ` + issueRefSelection + ` subIssuesSummary{total completed}}`
 )
+
+// ancestorSelection selects ancestorLevels levels of parent issues.
+func ancestorSelection() string {
+	return strings.Repeat("parent{...AncestorIssue ", ancestorLevels) + "parent{id}" + strings.Repeat("}", ancestorLevels)
+}
+
+type rawAncestor struct {
+	ID string
+	rawIssueRef
+	SubIssuesSummary struct {
+		Total     int
+		Completed int
+	}
+	Parent *rawAncestor
+}
 
 type rawPRPage struct {
 	PageInfo rawPageInfo
@@ -55,6 +75,8 @@ type rawIssue struct {
 	ClosedByPullRequestsReferences rawPRPage
 	// SubIssues is nil when the query did not select sub-issues.
 	SubIssues *rawIssuePage
+	// Parent is set only on the requested issue.
+	Parent *rawAncestor
 }
 
 // subIssuesSelection selects levels of sub-issues. The first level pages
@@ -115,9 +137,9 @@ type treeFetcher struct {
 // other repositories are followed by node id.
 func (c *Client) IssueTree(ctx context.Context, number int, depth int) (*model.Issue, error) {
 	query := `query($owner:String!,$name:String!,$number:Int!){
-  repository(owner:$owner,name:$name){issue(number:$number){...TreeIssue ` + subIssuesSelection(queryLevels(depth), false) + `}}
+  repository(owner:$owner,name:$name){issue(number:$number){...TreeIssue ` + subIssuesSelection(queryLevels(depth), false) + ` ` + ancestorSelection() + `}}
 }
-` + treeFragments
+` + treeFragments + "\n" + ancestorFragment
 	var resp struct {
 		Repository *struct {
 			Issue *rawIssue
@@ -160,7 +182,42 @@ func (c *Client) IssueTree(ctx context.Context, number int, depth int) (*model.I
 	if err := f.fillPRLabels(ctx); err != nil {
 		return nil, err
 	}
+	ancestors, err := c.ancestors(ctx, resp.Repository.Issue.Parent)
+	if err != nil {
+		return nil, err
+	}
+	root.Ancestors = ancestors
 	return root, nil
+}
+
+// ancestors walks the parent chain starting at p (nearest parent first) and
+// returns it outermost first, fetching beyond each ancestorLevels window by
+// node id.
+func (c *Client) ancestors(ctx context.Context, p *rawAncestor) ([]*model.Issue, error) {
+	var chain []*model.Issue
+	for p != nil {
+		for level := 0; p != nil && level < ancestorLevels; level++ {
+			a := &model.Issue{IssueRef: p.rawIssueRef.toModel()}
+			if s := p.SubIssuesSummary; s.Total > 0 {
+				a.Progress = &model.Progress{Completed: s.Completed, Total: s.Total}
+			}
+			chain = append(chain, a)
+			p = p.Parent
+		}
+		if p == nil {
+			break
+		}
+		// p holds only the id of the next ancestor beyond this window.
+		query := `query($id:ID!){node(id:$id){...AncestorIssue ` + ancestorSelection() + `}}
+` + ancestorFragment
+		var resp struct{ Node *rawAncestor }
+		if err := c.do(ctx, query, map[string]any{"id": p.ID}, &resp, ""); err != nil {
+			return nil, err
+		}
+		p = resp.Node
+	}
+	slices.Reverse(chain)
+	return chain, nil
 }
 
 func (f *treeFetcher) mapIssue(r *rawIssue, remaining int, todo *[]followUp) *model.Issue {

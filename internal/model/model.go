@@ -87,6 +87,10 @@ type Issue struct {
 	// LinkedPRs are closedByPullRequestsReferences(userLinkedOnly:false, includeClosedPrs:true).
 	LinkedPRs []PR
 	SubIssues []*Issue
+	// Ancestors are the parent chain of the requested issue, outermost
+	// first. Only set on the requested issue; ancestors carry IssueRef and
+	// Progress only.
+	Ancestors []*Issue
 }
 
 // PR is a fetched pull request.

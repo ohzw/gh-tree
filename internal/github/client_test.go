@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -278,6 +279,38 @@ func TestIssueTreeMergesFollowUpPages(t *testing.T) {
 	// Root query, three sub-issue follow-ups, one linked-PR follow-up, one label batch.
 	if len(fake.requests) != 6 {
 		t.Errorf("requests = %d, want 6", len(fake.requests))
+	}
+}
+
+func TestIssueTreeWalksAncestorsBeyondOneQuery(t *testing.T) {
+	// Parents 101 (nearest) .. 107 (outermost). The tree query returns five
+	// levels and the id of the sixth; a follow-up fetches the rest.
+	ancestor := func(n int) obj { return issueNode(fmt.Sprint("a", n), n, "octo/repo", 1) }
+	var chain obj
+	for n := 105; n >= 101; n-- {
+		a := ancestor(n)
+		if chain != nil {
+			a["parent"] = chain
+		} else {
+			a["parent"] = obj{"id": "a106"}
+		}
+		chain = a
+	}
+	root := with(issueNode("r", 1, "octo/repo", 0), "parent", chain)
+	followUps := map[string]obj{
+		"a106|": with(ancestor(106), "parent", with(ancestor(107), "parent", nil)),
+	}
+	c, _ := newTestClient(t, issueTreeHandler(t, root, followUps, nil))
+	got, err := c.IssueTree(context.Background(), 1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"octo/repo#107", "octo/repo#106", "octo/repo#105", "octo/repo#104", "octo/repo#103", "octo/repo#102", "octo/repo#101"}
+	if g := numbers(got.Ancestors); !slices.Equal(g, want) {
+		t.Errorf("ancestors = %v, want %v", g, want)
+	}
+	if p := got.Ancestors[0].Progress; p == nil || p.Total != 1 {
+		t.Errorf("outermost ancestor progress = %+v", p)
 	}
 }
 
