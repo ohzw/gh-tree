@@ -104,6 +104,7 @@ epic/#1244_telemetry-rebuild               （PR なし）
 ```
 - **Issue の状態の色:** open と reopened は緑、completed と closed は紫、not planned と duplicate は灰。
 - **狭いターミナル:** 情報は省かずに行を増やす。タイトルを列の中で折り返し、次に PR の head → base を PR の下の行に移し、それでも列の幅が足りない節点はタイトルを幅いっぱいに出して状態と詳細を下の行に移す（多くの節点がそうなるときは全節点をそろえる）。節点の続きの行は子の行より深く字下げする。アイコンは語から離さず、CJK の1文字だけを最後の行に残さない。
+- **リンク:** ターミナルに出すときは、Issue と PR の番号とタイトルを OSC 8 のハイパーリンクにして GitHub の URL を開けるようにする。リンクは行ごとに閉じ、罫線・ラベル・状態には付けない。パイプやリダイレクトには付けない。
 - **PR の状態の色:** open は緑、draft は灰、merged は紫、closed（merge なし）は赤。
 - **PR がない branch:** Epic PR がない branch は、その branch がどこから生えているかを API から知る手段がないため、独立した根にする。`gh tree branch develop` には出ず、`gh tree branch epic/#1244_…` で見る。配下に PR もない branch は表示しない。
 

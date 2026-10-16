@@ -3,11 +3,13 @@ package render
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/ohzw/gh-tree/internal/model"
 )
 
@@ -252,6 +254,44 @@ func TestTextPRUnderIssueShowsBase(t *testing.T) {
 	got := renderText(t, roots, Options{Repo: repo})
 	if !strings.Contains(got, "fix → epic/1") {
 		t.Errorf("PR under an issue lost its base:\n%s", got)
+	}
+}
+
+func TestTextLinks(t *testing.T) {
+	tree := func() []*model.Node {
+		root := issue(1, "Epic with a title long enough to wrap", "OPEN", "",
+			pr(2, "Fix the thing", "OPEN", false, "fix", "main"))
+		root.URL = "https://github.com/acme/app/issues/1"
+		root.Labels = []string{"bug"}
+		root.Children[0].URL = "https://github.com/acme/app/pull/2"
+		return []*model.Node{root}
+	}
+	want := map[string]string{
+		"https://github.com/acme/app/issues/1": "#1 Epic with a title long enough to wrap",
+		"https://github.com/acme/app/pull/2":   "PR #2 Fix the thing",
+	}
+	link := regexp.MustCompile("\x1b\\]8;id=[0-9a-f]+;([^\a]*)\a(.*?)\x1b\\]8;;\a")
+	for _, width := range []int{0, 80, 30, 24} {
+		got := renderText(t, tree(), Options{Repo: repo, Width: width, Color: true, Links: true})
+		// Each line opens and closes its own links, around the node's
+		// number and title only: never tree glyphs, labels, or state.
+		linked := map[string][]string{}
+		for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+			for _, m := range link.FindAllStringSubmatch(line, -1) {
+				linked[m[1]] = append(linked[m[1]], ansi.Strip(m[2]))
+			}
+			if rest := link.ReplaceAllString(line, ""); strings.Contains(rest, "\x1b]8;") {
+				t.Errorf("width %d: unbalanced link in %q", width, line)
+			}
+		}
+		for url, text := range want {
+			if g := strings.Join(strings.Fields(strings.Join(linked[url], " ")), " "); g != text {
+				t.Errorf("width %d: link %s covers %q, want %q", width, url, g, text)
+			}
+		}
+	}
+	if got := renderText(t, tree(), Options{Repo: repo, Width: 30}); strings.Contains(got, "\x1b]8;") {
+		t.Errorf("Links=false output has links: %q", got)
 	}
 }
 

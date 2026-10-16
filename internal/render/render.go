@@ -5,6 +5,7 @@ package render
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"strconv"
 	"strings"
@@ -30,6 +31,9 @@ type Options struct {
 	Width int
 	// Icons draws Nerd Font (Octicons) icons instead of plain symbols.
 	Icons bool
+	// Links makes each issue and PR number and title an OSC 8 hyperlink to
+	// the item on GitHub. Only for terminals: pipes get plain text.
+	Links bool
 }
 
 const (
@@ -61,11 +65,12 @@ const (
 	toneCount
 )
 
-// seg is a run of text drawn in one tone.
+// seg is a run of text drawn in one tone, optionally as a hyperlink.
 type seg struct {
 	text string
 	tone tone
 	bold bool
+	link string // URL; "" is plain text
 }
 
 // row is one node split into columns. Nothing is ever truncated: when the
@@ -154,16 +159,32 @@ func Text(w io.Writer, roots []*model.Node, opt Options) error {
 
 	st := newStyles(w, opt.Color)
 	var b strings.Builder
+	// paint writes one line's segs. A hyperlink never spans a line end, so
+	// tree glyphs stay plain; the shared id lets a terminal highlight a
+	// wrapped title as one link.
 	paint := func(ss []seg) {
+		link := ""
 		for _, s := range ss {
 			if s.text == "" {
 				continue
+			}
+			if s.link != link {
+				if link != "" {
+					b.WriteString(ansi.ResetHyperlink())
+				}
+				if s.link != "" {
+					b.WriteString(ansi.SetHyperlink(s.link, "id="+linkID(s.link)))
+				}
+				link = s.link
 			}
 			style := st.tones[s.tone]
 			if s.bold {
 				style = style.Bold(true)
 			}
 			b.WriteString(style.Render(strings.ReplaceAll(s.text, iconSep, " ")))
+		}
+		if link != "" {
+			b.WriteString(ansi.ResetHyperlink())
 		}
 	}
 	glyph := func(g string) { paint([]seg{{text: g, tone: toneGray}}) }
@@ -265,7 +286,7 @@ seams:
 			continue
 		}
 		if h := ansi.Truncate(p.text, n, ""); h != "" {
-			head.parts = append(head.parts, seg{text: h, tone: p.tone, bold: p.bold})
+			head.parts = append(head.parts, seg{text: h, tone: p.tone, bold: p.bold, link: p.link})
 			p.text = ansi.TruncateLeft(p.text, ansi.StringWidth(h), "")
 		}
 		tail.parts = append([]seg{p}, u.parts[i+1:]...)
@@ -282,7 +303,8 @@ func wrap(ss []seg, first, rest int) [][]seg {
 	var units []unit
 	for _, s := range ss {
 		for _, tok := range tokens(s.text) {
-			p := seg{text: tok, tone: s.tone, bold: s.bold}
+			p := s
+			p.text = tok
 			n := len(units)
 			switch {
 			case tok == " ":
@@ -355,7 +377,7 @@ func wrap(ss []seg, first, rest int) [][]seg {
 	for i, l := range lines {
 		for _, u := range l {
 			for _, p := range u.parts {
-				if k := len(out[i]); k > 0 && out[i][k-1].tone == p.tone && out[i][k-1].bold == p.bold {
+				if k := len(out[i]); k > 0 && out[i][k-1].tone == p.tone && out[i][k-1].bold == p.bold && out[i][k-1].link == p.link {
 					out[i][k-1].text += p.text
 				} else {
 					out[i] = append(out[i], p)
@@ -440,6 +462,10 @@ func appendRows(rows []row, n, parent *model.Node, prefix, childPrefix string, o
 func nodeRow(n, parent *model.Node, opt Options) row {
 	repo := opt.Repo
 	g := glyphsFor(opt.Icons)
+	link := ""
+	if opt.Links {
+		link = n.URL
+	}
 	switch n.Kind {
 	case model.KindIssue:
 		state, t := issueState(n, g)
@@ -448,7 +474,7 @@ func nodeRow(n, parent *model.Node, opt Options) row {
 			titleTone = toneGray
 		}
 		r := row{
-			main:  append([]seg{{text: ref(n, repo, g.repo), tone: t, bold: true}, {text: title(n.Title), tone: titleTone, bold: n.Focus}}, labelSegs(n.Labels, g)...),
+			main:  append([]seg{{text: ref(n, repo, g.repo), tone: t, bold: true, link: link}, {text: title(n.Title), tone: titleTone, bold: n.Focus, link: link}}, labelSegs(n.Labels, g)...),
 			state: []seg{{text: state, tone: t}},
 		}
 		if n.Focus {
@@ -475,7 +501,7 @@ func nodeRow(n, parent *model.Node, opt Options) row {
 		}
 		return row{
 			// The PR icon already leads the row, so no repository icon.
-			main:  append([]seg{{text: withIcon(icon, ref(n, repo, "")), tone: t}, {text: title(n.Title), tone: toneGray}}, labelSegs(n.Labels, g)...),
+			main:  append([]seg{{text: withIcon(icon, ref(n, repo, "")), tone: t, link: link}, {text: title(n.Title), tone: toneGray, link: link}}, labelSegs(n.Labels, g)...),
 			state: []seg{{text: state, tone: t}},
 			extra: extra,
 		}
@@ -488,6 +514,13 @@ func nodeRow(n, parent *model.Node, opt Options) row {
 	default:
 		return row{main: []seg{{text: string(n.Kind)}}}
 	}
+}
+
+// linkID is the OSC 8 id for url: hex, so it holds no ':' or ';'.
+func linkID(url string) string {
+	h := fnv.New32a()
+	h.Write([]byte(url))
+	return strconv.FormatUint(uint64(h.Sum32()), 16)
 }
 
 // parentIsBase reports whether a PR's parent node is its base branch: a

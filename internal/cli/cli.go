@@ -359,10 +359,11 @@ func (s *session) write(w io.Writer, o *options, roots []*model.Node) error {
 	t := term.FromEnv()
 	color := !o.noColor && t.IsColorEnabled()
 	width := 0
-	if t.IsTerminalOutput() {
+	links := t.IsTerminalOutput()
+	if links {
 		if cols, _, err := t.Size(); err == nil {
 			width = cols
 		}
 	}
-	return render.Text(w, roots, render.Options{Color: color, Repo: s.repo, DefaultBranch: s.defaultBranch, Width: width, Icons: !o.noIcons})
+	return render.Text(w, roots, render.Options{Color: color, Repo: s.repo, DefaultBranch: s.defaultBranch, Width: width, Icons: !o.noIcons, Links: links})
 }
