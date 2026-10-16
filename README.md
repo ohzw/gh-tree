@@ -24,6 +24,7 @@ gh tree                              ヘルプを表示する
 | `--no-color` | 共通 | 色を付けない（`NO_COLOR` 環境変数にも従う） |
 | `-d, --depth N` | 共通 | たどる深さ。根を 0 と数える（既定: 無制限） |
 | `--labels a,b` | 共通 | 節点の横に表示するラベル。絞り込みには使わない |
+| `--icons` | 共通 | 状態や PR、branch を [Nerd Fonts](https://www.nerdfonts.com/) の Octicons で描く。ターミナルに Nerd Font が必要 |
 | `--hide-closed` | issue | closed の子を1行にまとめる |
 | `--no-ancestors` | issue | 指定した Issue の親（祖先）の経路を表示しない |
 | `--state open\|merged\|all` | pr / branch | 表示する PR（既定: open） |

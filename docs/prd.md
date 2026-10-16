@@ -32,6 +32,7 @@ gh tree                              ヘルプを表示する
       --json                JSON で出力する
       --no-color            色を付けない（NO_COLOR 環境変数にも従う）
   -d, --depth N             たどる深さ（既定: 無制限）
+      --icons               状態・PR・branch・ラベルなどを Nerd Fonts の Octicons（nf-oct-*）で描く（既定: 使わない）。状態の語は残す
       --labels a,b          節点の横に表示するラベル（既定: 表示しない）。表示する節点の絞り込みには使わない
 
 issue:

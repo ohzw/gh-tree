@@ -29,6 +29,7 @@ type options struct {
 	labels      []string
 	hideClosed  bool
 	noAncestors bool
+	icons       bool
 	state       string
 	issues      bool
 }
@@ -82,6 +83,7 @@ With a bare <number>, gh tree detects whether it is an issue or a pull request.`
 	pf := root.PersistentFlags()
 	pf.BoolVar(&o.json, "json", false, "Output JSON")
 	pf.BoolVar(&o.noColor, "no-color", false, "Disable color (also honors NO_COLOR)")
+	pf.BoolVar(&o.icons, "icons", false, "Draw Nerd Font icons (needs a Nerd Font in the terminal)")
 	pf.IntVarP(&o.depth, "depth", "d", -1, "Depth to traverse, counting the root as 0; -1 is unlimited")
 	pf.StringSliceVar(&o.labels, "labels", nil, "Comma-separated labels to show next to nodes (does not filter)")
 
@@ -362,5 +364,5 @@ func (s *session) write(w io.Writer, o *options, roots []*model.Node) error {
 			width = cols
 		}
 	}
-	return render.Text(w, roots, render.Options{Color: color, Repo: s.repo, DefaultBranch: s.defaultBranch, Width: width})
+	return render.Text(w, roots, render.Options{Color: color, Repo: s.repo, DefaultBranch: s.defaultBranch, Width: width, Icons: o.icons})
 }
