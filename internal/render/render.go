@@ -27,6 +27,8 @@ type Options struct {
 	DefaultBranch string
 	// Width is the terminal width in columns; 0 means unlimited (pipes).
 	Width int
+	// Icons draws Nerd Font (Octicons) icons instead of plain symbols.
+	Icons bool
 }
 
 const (
@@ -305,13 +307,14 @@ func appendRows(rows []row, n *model.Node, prefix, childPrefix string, opt Optio
 	r := nodeRow(n, opt)
 	r.kind = n.Kind
 	r.prefix = prefix
+	g := glyphsFor(opt.Icons)
 	// Summary lines for children that are not drawn, after the drawn ones.
 	var summaries []string
 	if n.HiddenClosed > 0 {
-		summaries = append(summaries, fmt.Sprintf("… closed %d件", n.HiddenClosed))
+		summaries = append(summaries, withIcon(g.hiddenClosed, fmt.Sprintf("closed %d件", n.HiddenClosed)))
 	}
 	if n.OmittedChildren > 0 {
-		summaries = append(summaries, fmt.Sprintf("… 他 %d件", n.OmittedChildren))
+		summaries = append(summaries, withIcon(g.omitted, fmt.Sprintf("他 %d件", n.OmittedChildren)))
 	}
 	r.cont = childPrefix + "   "
 	if len(n.Children)+len(summaries) > 0 {
@@ -346,15 +349,16 @@ func appendRows(rows []row, n *model.Node, prefix, childPrefix string, opt Optio
 // every PR row recede to gray so the work that remains stands out.
 func nodeRow(n *model.Node, opt Options) row {
 	repo := opt.Repo
+	g := glyphsFor(opt.Icons)
 	switch n.Kind {
 	case model.KindIssue:
-		state, t := issueState(n)
+		state, t := issueState(n, g)
 		titleTone := toneNone
 		if n.State == "CLOSED" {
 			titleTone = toneGray
 		}
 		r := row{
-			main:  append([]seg{{text: ref(n, repo), tone: t, bold: true}, {text: title(n.Title), tone: titleTone, bold: n.Focus}}, labelSegs(n.Labels)...),
+			main:  append([]seg{{text: ref(n, repo, g.repo), tone: t, bold: true}, {text: title(n.Title), tone: titleTone, bold: n.Focus}}, labelSegs(n.Labels, g)...),
 			state: state,
 			tone:  t,
 		}
@@ -366,23 +370,24 @@ func nodeRow(n *model.Node, opt Options) row {
 			if p.Completed == p.Total {
 				pt = toneGreen
 			}
-			r.extra = []seg{{text: fmt.Sprintf("%d/%d", p.Completed, p.Total), tone: pt}}
+			r.extra = []seg{{text: withIcon(g.tasklist, fmt.Sprintf("%d/%d", p.Completed, p.Total)), tone: pt}}
 		}
 		return r
 	case model.KindPR:
-		state, t := prState(n)
+		state, t, icon := prState(n, g)
 		head := n.Head
 		if n.HeadOwner != "" {
 			head = n.HeadOwner + ":" + head
 		}
 		return row{
-			main:  append([]seg{{text: "PR " + ref(n, repo), tone: t}, {text: title(n.Title), tone: toneGray}}, labelSegs(n.Labels)...),
+			// The PR icon already leads the row, so no repository icon.
+			main:  append([]seg{{text: withIcon(icon, ref(n, repo, "")), tone: t}, {text: title(n.Title), tone: toneGray}}, labelSegs(n.Labels, g)...),
 			state: state,
 			tone:  t,
-			extra: []seg{{text: head + " → ", tone: toneGray}, {text: n.Base, tone: toneBranch}},
+			extra: []seg{{text: withIcon(g.branch, head+" → "), tone: toneGray}, {text: n.Base, tone: toneBranch}},
 		}
 	case model.KindBranch:
-		r := row{main: append([]seg{{text: n.Name, tone: toneBranch, bold: true}}, labelSegs(n.Labels)...)}
+		r := row{main: append([]seg{{text: withIcon(g.branch, n.Name), tone: toneBranch, bold: true}}, labelSegs(n.Labels, g)...)}
 		if n.Name != opt.DefaultBranch {
 			r.state, r.tone = "（PR なし）", toneGray
 		}
@@ -392,10 +397,59 @@ func nodeRow(n *model.Node, opt Options) row {
 	}
 }
 
-func ref(n *model.Node, repo string) string {
+// glyphs are the icons drawn in text output. An empty glyph draws nothing.
+type glyphs struct {
+	issueOpen, issueReopened, issueClosed, issueNotPlanned, issueDuplicate string
+	prOpen, prDraft, prMerged, prClosed                                    string
+	branch, repo, label, tasklist, hiddenClosed, omitted                   string
+}
+
+var (
+	plainGlyphs = glyphs{
+		issueOpen: "●", issueReopened: "●", issueClosed: "✓", issueNotPlanned: "⊘", issueDuplicate: "⊘",
+		prOpen: "PR", prDraft: "PR", prMerged: "PR", prClosed: "PR",
+		hiddenClosed: "…", omitted: "…",
+	}
+	// nerdGlyphs are GitHub's Octicons as packaged in Nerd Fonts (nf-oct-*).
+	// Each is followed by a space so a font drawing it two cells wide
+	// overlaps the space instead of shifting the columns.
+	nerdGlyphs = glyphs{
+		issueOpen:       "\uf41b", // oct-issue_opened
+		issueReopened:   "\uf41c", // oct-issue_reopened
+		issueClosed:     "\uf41d", // oct-issue_closed
+		issueNotPlanned: "\uf517", // oct-skip
+		issueDuplicate:  "\uf4c4", // oct-duplicate
+		prOpen:          "\uf407", // oct-git_pull_request
+		prDraft:         "\uf4dd", // oct-git_pull_request_draft
+		prMerged:        "\uf419", // oct-git_merge
+		prClosed:        "\uf4dc", // oct-git_pull_request_closed
+		branch:          "\uf418", // oct-git_branch
+		repo:            "\uf401", // oct-repo
+		label:           "\uf412", // oct-tag
+		tasklist:        "\uf4a0", // oct-tasklist
+		hiddenClosed:    "\uf41d", // oct-issue_closed
+		omitted:         "\uf51e", // oct-stack
+	}
+)
+
+func glyphsFor(icons bool) glyphs {
+	if icons {
+		return nerdGlyphs
+	}
+	return plainGlyphs
+}
+
+func withIcon(icon, text string) string {
+	if icon == "" {
+		return text
+	}
+	return icon + " " + text
+}
+
+func ref(n *model.Node, repo, repoIcon string) string {
 	num := "#" + strconv.Itoa(n.Number)
 	if n.Repo != "" && repo != "" && !strings.EqualFold(n.Repo, repo) {
-		return n.Repo + num
+		return withIcon(repoIcon, n.Repo+num)
 	}
 	return num
 }
@@ -409,43 +463,51 @@ func title(s string) string {
 	return " " + s
 }
 
-func labelSegs(ls []string) []seg {
+func labelSegs(ls []string, g glyphs) []seg {
 	if len(ls) == 0 {
 		return nil
 	}
-	return []seg{{text: " [" + strings.Join(ls, "] [") + "]", tone: toneLabel}}
+	text := " [" + strings.Join(ls, "] [") + "]"
+	if g.label != "" {
+		text = ""
+		for _, l := range ls {
+			text += " " + withIcon(g.label, l)
+		}
+	}
+	return []seg{{text: text, tone: toneLabel}}
 }
 
-func issueState(n *model.Node) (string, tone) {
+func issueState(n *model.Node, g glyphs) (string, tone) {
 	if n.State != "CLOSED" {
 		if n.StateReason == "REOPENED" {
-			return "● open (reopened)", toneGreen
+			return withIcon(g.issueReopened, "open (reopened)"), toneGreen
 		}
-		return "● open", toneGreen
+		return withIcon(g.issueOpen, "open"), toneGreen
 	}
 	switch n.StateReason {
 	case "NOT_PLANNED":
-		return "⊘ closed (not planned)", toneGray
+		return withIcon(g.issueNotPlanned, "closed (not planned)"), toneGray
 	case "DUPLICATE":
-		return "⊘ closed (duplicate)", toneGray
+		return withIcon(g.issueDuplicate, "closed (duplicate)"), toneGray
 	case "COMPLETED":
-		return "✓ closed (completed)", tonePurple
+		return withIcon(g.issueClosed, "closed (completed)"), tonePurple
 	default:
-		return "✓ closed", tonePurple
+		return withIcon(g.issueClosed, "closed"), tonePurple
 	}
 }
 
-func prState(n *model.Node) (string, tone) {
+// prState returns the state word, its tone, and the icon that leads the PR row.
+func prState(n *model.Node, g glyphs) (string, tone, string) {
 	switch n.State {
 	case "MERGED":
-		return "merged", tonePurple
+		return "merged", tonePurple, g.prMerged
 	case "CLOSED":
-		return "closed", toneRed
+		return "closed", toneRed, g.prClosed
 	default:
 		if n.IsDraft {
-			return "draft", toneGray
+			return "draft", toneGray, g.prDraft
 		}
-		return "open", toneGreen
+		return "open", toneGreen, g.prOpen
 	}
 }
 

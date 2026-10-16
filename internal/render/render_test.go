@@ -142,6 +142,54 @@ func TestTextWrapsToWidth(t *testing.T) {
 	}
 }
 
+func TestTextIconsPerState(t *testing.T) {
+	other := issue(7, "Upstream", "OPEN", "")
+	other.Repo = "other/lib"
+	otherPR := pr(8, "Upstream fix", "OPEN", false, "fix", "main")
+	otherPR.Repo = "other/lib"
+	progress := issue(1, "Epic", "OPEN", "")
+	progress.Progress = &model.Progress{Completed: 1, Total: 3}
+	labeled := issue(2, "Labeled", "OPEN", "")
+	labeled.Labels = []string{"bug", "p1"}
+	folded := issue(3, "Folded", "OPEN", "")
+	folded.HiddenClosed, folded.OmittedChildren = 2, 4
+
+	tests := []struct {
+		name string
+		node *model.Node
+		want []string // substrings that must appear
+	}{
+		{"issue open", issue(1, "a", "OPEN", ""), []string{"\uf41b open"}},
+		{"issue reopened", issue(1, "a", "OPEN", "REOPENED"), []string{"\uf41c open (reopened)"}},
+		{"issue completed", issue(1, "a", "CLOSED", "COMPLETED"), []string{"\uf41d closed (completed)"}},
+		{"issue not planned", issue(1, "a", "CLOSED", "NOT_PLANNED"), []string{"\uf517 closed (not planned)"}},
+		{"issue duplicate", issue(1, "a", "CLOSED", "DUPLICATE"), []string{"\uf4c4 closed (duplicate)"}},
+		{"pr open", pr(1, "a", "OPEN", false, "h", "main"), []string{"\uf407 #1", "open", "\uf418 h → main"}},
+		{"pr draft", pr(1, "a", "OPEN", true, "h", "main"), []string{"\uf4dd #1", "draft"}},
+		{"pr merged", pr(1, "a", "MERGED", false, "h", "main"), []string{"\uf419 #1", "merged"}},
+		{"pr closed", pr(1, "a", "CLOSED", false, "h", "main"), []string{"\uf4dc #1", "closed"}},
+		{"branch", &model.Node{Kind: model.KindBranch, Name: "epic/1"}, []string{"\uf418 epic/1"}},
+		{"other repo issue", other, []string{"\uf401 other/lib#7"}},
+		{"other repo pr has only the pr icon", otherPR, []string{"\uf407 other/lib#8"}},
+		{"progress", progress, []string{"\uf4a0 1/3"}},
+		{"labels", labeled, []string{"\uf412 bug \uf412 p1"}},
+		{"folded children", folded, []string{"\uf41d closed 2件", "\uf51e 他 4件"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderText(t, []*model.Node{tt.node}, Options{Repo: repo, Icons: true})
+			for _, w := range tt.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("missing %q in:\n%s", w, got)
+				}
+			}
+			if strings.Contains(got, "PR #") || strings.Contains(got, "●") || strings.Contains(got, "[") {
+				t.Errorf("plain symbols left in icon output:\n%s", got)
+			}
+		})
+	}
+}
+
 func TestTextPRForestWithForkAndBranchRoots(t *testing.T) {
 	fork := pr(1270, "Fork contribution", "OPEN", false, "patch-1", "release/2.4")
 	fork.HeadOwner = "someone"
