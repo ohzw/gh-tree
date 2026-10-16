@@ -25,6 +25,7 @@ gh tree                              ヘルプを表示する
 | `-d, --depth N` | 共通 | たどる深さ。根を 0 と数える（既定: 無制限） |
 | `--labels a,b` | 共通 | 節点の横に表示するラベル。絞り込みには使わない |
 | `--hide-closed` | issue | closed の子を1行にまとめる |
+| `--no-ancestors` | issue | 指定した Issue の親（祖先）の経路を表示しない |
 | `--state open\|merged\|all` | pr / branch | 表示する PR（既定: open） |
 | `--issues` | pr / branch | 各 PR に紐づいた Issue を PR の子として表示する |
 
@@ -33,6 +34,8 @@ PR は、base と同じ名前の head を持つ PR の子になります。付�
 Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じものです。GitHub は default branch 以外を base にした PR の `Fixes #N` を紐づけとして扱わないため、Epic branch などに向けた PR を Issue tree に出すには、Web UI の Development 欄で手で紐づけてください。
 
 ターミナルの幅に収まらないときも、情報は省かずに行を増やします。まずタイトルを列の中で折り返し、次に PR の `head → base` を PR の下の行に移し、それでも狭いときは状態と詳細を各節点の下の行に移します。パイプやリダイレクトに出すときは折り返しません。
+
+Issue に親があるときは、一番上の祖先から指定した Issue（`▶` 付き）までの経路を上に表示します。経路にない子は `… 他 N件` とまとめます。
 
 ```
 $ gh tree issue 1244

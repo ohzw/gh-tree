@@ -36,6 +36,7 @@ gh tree                              ヘルプを表示する
 
 issue:
       --hide-closed         closed の子を1行にまとめる（例: `└─ … closed 3件`）
+      --no-ancestors        指定した Issue の親（祖先）を表示しない
 
 pr / branch:
       --state open|merged|all   表示する PR（既定: open）。merged / all では期間を区切らずに取得する
@@ -51,6 +52,7 @@ pr / branch:
 |---|---|
 | `gh tree issue` | Sub-issue を再帰的にたどる。各 Issue に、番号、タイトル、状態（closed なら理由、reopen された open なら `open (reopened)`）、直下の子の完了数（例: `1/4`）を表示する。完了数は `subIssuesSummary` の `completed / total` をそのまま使い、not planned と duplicate で閉じた子も完了に数える。紐づいた PR は、Issue の子の行として子の Issue より先に並べ、状態と head → base を表示する |
 | リポジトリをまたぐ Sub-issue | 別のリポジトリの Issue と PR は `owner/repo#N` と表示する。表示だけで、追加の問い合わせは行わない |
+| Issue の祖先 | 指定した Issue に親があれば、一番上の祖先を根にして、指定した Issue までの経路を既定で表示する。経路上の祖先には、ほかの子を出さずに件数だけ示す（例: `└─ … 他 7件`）。祖先の行には完了数を出し、紐づいた PR は出さない。指定した Issue には行頭に `▶` を付けて太字にする。`--depth` は指定した Issue から数える。`--no-ancestors` で消せる。PR を指定したときは、PR が閉じる Issue の親はたどらない |
 | `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、head → base を表示する。fork の PR の head は `owner:branch` と表示する |
 | `gh tree pr <number>` | 指定した PR から根の branch までの経路と、その PR より下の木を表示する。兄弟の PR は表示しない |
 | `gh tree <number>` | 番号から Issue か PR かを判定し、該当するサブコマンドとして動く |
@@ -120,10 +122,10 @@ epic/#1244_telemetry-rebuild               （PR なし）
 ## 10. 技術方針
 - **言語:** Go と `cli/go-gh`（認証、リポジトリの判定、GraphQL クライアント、表示幅と色の扱い）。表示には `lipgloss` などを使う。
 - **API:**
-  - Issue: `state`、`stateReason`（`enableDuplicate` は付けない。削除予定の引数で、なくても DUPLICATE が返る）、`subIssues`、`subIssuesSummary`、`closedByPullRequestsReferences(userLinkedOnly:false, includeClosedPrs:true)`、`labels`
+  - Issue: `state`、`stateReason`（`enableDuplicate` は付けない。削除予定の引数で、なくても DUPLICATE が返る）、`subIssues`、`subIssuesSummary`、`closedByPullRequestsReferences(userLinkedOnly:false, includeClosedPrs:true)`、`labels`、`parent`（根の問い合わせで5段まで入れ子に取り、それより上は node id で追加取得する）
   - PR: `pullRequests(states:…) { number title state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt closingIssuesReferences{ number repository{nameWithOwner} } labels }`。`headRepository` は fork が消えると null になるので使わない
 - **データの持ち方:** 節点を共通の形にし、表示する tree と同じ入れ子で持ちます。紐づいた PR や Issue も、`kind` を付けて `children` に入れます。
-  - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, headOwner（fork の PR だけ）, name（branch の名前）, labels, progress, hiddenClosed（--hide-closed で畳んだ数）, children[]`。定義は `internal/model/model.go`
+  - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, headOwner（fork の PR だけ）, name（branch の名前）, labels, progress, hiddenClosed（--hide-closed で畳んだ数）, omittedChildren（祖先の、経路にない子の数）, focus（祖先を出したときの指定した Issue）, children[]`。定義は `internal/model/model.go`
   - JSON はこの形をそのまま出し、先頭に `schemaVersion` を置きます。エージェントが読む前提なので、項目の名前は変えない約束にします。形を変えるときは `schemaVersion` を上げます。
 - **作りの分け方:** 取得（Issue と PR の取得部分）、組み立て（親子や base と head で tree を作る）、表示（tree / JSON）の3つに分ける。表示の部分は Issue と PR で共通にする。
 

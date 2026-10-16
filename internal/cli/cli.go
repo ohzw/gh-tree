@@ -23,13 +23,14 @@ import (
 )
 
 type options struct {
-	json       bool
-	noColor    bool
-	depth      int
-	labels     []string
-	hideClosed bool
-	state      string
-	issues     bool
+	json        bool
+	noColor     bool
+	depth       int
+	labels      []string
+	hideClosed  bool
+	noAncestors bool
+	state       string
+	issues      bool
 }
 
 // Execute runs the command line and returns the process exit code.
@@ -94,6 +95,7 @@ With a bare <number>, gh tree detects whether it is an issue or a pull request.`
 
 func addIssueFlags(cmd *cobra.Command, o *options) {
 	cmd.Flags().BoolVar(&o.hideClosed, "hide-closed", false, "Fold closed sub-issues into one line")
+	cmd.Flags().BoolVar(&o.noAncestors, "no-ancestors", false, "Do not show the parent issues above the requested issue")
 }
 
 func addPRFlags(cmd *cobra.Command, o *options) {
@@ -188,6 +190,7 @@ func (o *options) buildOptions() build.Options {
 	return build.Options{
 		Depth:      o.depth,
 		HideClosed: o.hideClosed,
+		Ancestors:  !o.noAncestors,
 		WithIssues: o.issues,
 		Labels:     o.labels,
 	}
