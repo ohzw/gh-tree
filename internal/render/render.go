@@ -305,16 +305,21 @@ func appendRows(rows []row, n *model.Node, prefix, childPrefix string, opt Optio
 	r := nodeRow(n, opt)
 	r.kind = n.Kind
 	r.prefix = prefix
+	// Summary lines for children that are not drawn, after the drawn ones.
+	var summaries []string
+	if n.HiddenClosed > 0 {
+		summaries = append(summaries, fmt.Sprintf("… closed %d件", n.HiddenClosed))
+	}
+	if n.OmittedChildren > 0 {
+		summaries = append(summaries, fmt.Sprintf("… 他 %d件", n.OmittedChildren))
+	}
 	r.cont = childPrefix + "   "
-	if len(n.Children) > 0 || n.HiddenClosed > 0 {
+	if len(n.Children)+len(summaries) > 0 {
 		r.cont = childPrefix + "│  "
 	}
 	rows = append(rows, r)
 
-	last := len(n.Children) - 1
-	if n.HiddenClosed > 0 {
-		last++
-	}
+	last := len(n.Children) + len(summaries) - 1
 	for i, c := range n.Children {
 		if i == last {
 			rows = appendRows(rows, c, childPrefix+"└─ ", childPrefix+"   ", opt)
@@ -322,11 +327,15 @@ func appendRows(rows []row, n *model.Node, prefix, childPrefix string, opt Optio
 			rows = appendRows(rows, c, childPrefix+"├─ ", childPrefix+"│  ", opt)
 		}
 	}
-	if n.HiddenClosed > 0 {
+	for i, s := range summaries {
+		glyph, cont := "├─ ", "│  "
+		if len(n.Children)+i == last {
+			glyph, cont = "└─ ", "   "
+		}
 		rows = append(rows, row{
-			prefix: childPrefix + "└─ ",
-			cont:   childPrefix + "   ",
-			main:   []seg{{text: fmt.Sprintf("… closed %d件", n.HiddenClosed), tone: toneGray}},
+			prefix: childPrefix + glyph,
+			cont:   childPrefix + cont,
+			main:   []seg{{text: s, tone: toneGray}},
 		})
 	}
 	return rows
@@ -345,9 +354,12 @@ func nodeRow(n *model.Node, opt Options) row {
 			titleTone = toneGray
 		}
 		r := row{
-			main:  append([]seg{{text: ref(n, repo), tone: t, bold: true}, {text: title(n.Title), tone: titleTone}}, labelSegs(n.Labels)...),
+			main:  append([]seg{{text: ref(n, repo), tone: t, bold: true}, {text: title(n.Title), tone: titleTone, bold: n.Focus}}, labelSegs(n.Labels)...),
 			state: state,
 			tone:  t,
+		}
+		if n.Focus {
+			r.main = append([]seg{{text: "▶ ", tone: t, bold: true}}, r.main...)
 		}
 		if p := n.Progress; p != nil {
 			pt := toneBold
