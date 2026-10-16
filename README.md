@@ -24,7 +24,7 @@ gh tree                              ヘルプを表示する
 | `--no-color` | 共通 | 色を付けない（`NO_COLOR` 環境変数にも従う） |
 | `-d, --depth N` | 共通 | たどる深さ。根を 0 と数える（既定: 無制限） |
 | `--labels a,b` | 共通 | 節点の横に表示するラベル。絞り込みには使わない |
-| `--icons` | 共通 | 状態や PR、branch を [Nerd Fonts](https://www.nerdfonts.com/) の Octicons で描く。ターミナルに Nerd Font が必要 |
+| `--no-icons` | 共通 | [Nerd Fonts](https://www.nerdfonts.com/) の Octicons をやめ、記号（`●` `✓` `PR` など）で描く。Nerd Font のないターミナルで使う |
 | `--hide-closed` | issue | closed の子を1行にまとめる |
 | `--no-ancestors` | issue | 指定した Issue の親（祖先）の経路を表示しない |
 | `--state open\|merged\|all` | pr / branch | 表示する PR（既定: open） |
@@ -36,17 +36,19 @@ Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じも�
 
 ターミナルの幅に収まらないときも、情報は省かずに行を増やします。まずタイトルを列の中で折り返し、次に PR の `head → base` を PR の下の行に移し、それでも狭いときは状態と詳細を各節点の下の行に移します。パイプやリダイレクトに出すときは折り返しません。
 
-Issue に親があるときは、一番上の祖先から指定した Issue（`▶` 付き）までの経路を上に表示します。経路にない子は `… 他 N件` とまとめます。
+Issue に親があるときは、一番上の祖先から指定した Issue（`▶` 付き）までの経路を上に表示します。経路にない子は `他 N件` とまとめます。
+
+既定では状態や PR、branch を Nerd Fonts のアイコンで描きます。次の例は、どの環境でも読めるよう `--no-icons` で出したものです。
 
 ```
-$ gh tree issue 1244
+$ gh tree issue 1244 --no-icons
 #1244 [Epic] Telemetryを判断起点で作り直す  ● open                1/4
 ├─ #1245 Bricks の Progression Funnel       ✓ closed (completed)
 │  └─ PR #1248 Funnel                       merged                feature/1245 → epic/1244
 └─ #1254 削除と待機イベントの一本化         ● open
    └─ PR #1257 Unify delete                 open                  feature/1254 → epic/1244
 
-$ gh tree pr
+$ gh tree pr --no-icons
 main
 └─ PR #1260 Release 2.4   open         release/2.4 → main
 epic/1244                 （PR なし）
