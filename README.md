@@ -115,3 +115,7 @@ $ GH_REPO=cli/cli gh tree pr 9847 --json
 ```sh
 GH_REPO=cli/cli gh tree pr
 ```
+
+## ライセンス
+
+[MIT](LICENSE)
