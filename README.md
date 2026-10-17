@@ -1,71 +1,73 @@
 # gh-tree
 
-GitHub の Issue・PR・branch の関係（Sub-issue の親子、Issue に紐づいた PR、PR の merge 先のつながり）と、それぞれの状態をターミナルに tree で表示する [gh](https://cli.github.com/) の extension です。リポジトリのファイル構成の tree を表示するツールではありません。npm の同名パッケージ gh-tree（[mgks/GitHubTree](https://github.com/mgks/GitHubTree)）とは無関係です。
+English | [日本語](README.ja.md)
 
-![gh tree issue 1 の出力。Epic の Sub-issue と、それぞれに紐づいた PR が状態とともに tree で並ぶ](docs/images/issue-tree.png)
+A [gh](https://cli.github.com/) extension that shows how GitHub issues, pull requests, and branches relate to each other (sub-issue parents and children, the PRs linked to each issue, and which branch each PR merges into) as a tree in your terminal, along with the state of each one. It does not show the file tree of a repository, and it is unrelated to the npm package gh-tree ([mgks/GitHubTree](https://github.com/mgks/GitHubTree)).
 
-## インストール
+![Output of gh tree issue 1: an epic's sub-issues and the PRs linked to each, shown as a tree with their states](docs/images/issue-tree.png)
+
+## Installation
 
 ```sh
 gh extension install ohzw/gh-tree
 ```
 
-## 使い方
+## Usage
 
 ```
-gh tree issue <number>... [flags]   Issue tree（Sub-issue と、各 Issue に紐づいた PR）
-gh tree pr [<number>...] [flags]     PR tree（番号を省けば、対象の状態の PR すべて）
-gh tree branch <name> [flags]        指定した branch を根にした PR tree
-gh tree <number>                     番号から Issue か PR かを自動で判定する
-gh tree                              ヘルプを表示する
+gh tree issue <number>... [flags]   Issue tree (sub-issues and the PRs linked to each issue)
+gh tree pr [<number>...] [flags]     PR tree (without numbers, every PR in the selected states)
+gh tree branch <name> [flags]        PR tree rooted at the given branch
+gh tree <number>                     Detect whether the number is an issue or a PR
+gh tree                              Show help
 ```
 
-| フラグ | 対象 | 内容 |
+| Flag | Applies to | Description |
 |---|---|---|
-| `--json` | 共通 | JSON で出力する |
-| `--no-color` | 共通 | 色を付けない（`NO_COLOR` 環境変数にも従う） |
-| `-d, --depth N` | 共通 | たどる深さ。根を 0 と数える（既定: 無制限） |
-| `--labels a,b` | 共通 | 節点の横に表示するラベル。絞り込みには使わない |
-| `--no-icons` | 共通 | [Nerd Fonts](https://www.nerdfonts.com/) の Octicons をやめ、記号（`●` `✓` `PR` など）で描く。Nerd Font のないターミナルで使う |
-| `--hide-closed` | issue | closed の子を1行にまとめる |
-| `--no-ancestors` | issue | 指定した Issue の親（祖先）の経路を表示しない |
-| `--state open\|merged\|all` | pr / branch | 表示する PR（既定: open） |
-| `--issues` | pr / branch | 各 PR に紐づいた Issue を PR の子として表示する |
+| `--json` | all | Print JSON |
+| `--no-color` | all | Disable colors (`NO_COLOR` is also respected) |
+| `-d, --depth N` | all | How deep to follow the tree, counting the root as 0 (default: unlimited) |
+| `--labels a,b` | all | Labels to show next to each node. Display only; they do not filter |
+| `--no-icons` | all | Draw plain symbols (`●` `✓` `PR` and so on) instead of [Nerd Fonts](https://www.nerdfonts.com/) Octicons. For terminals without a Nerd Font |
+| `--hide-closed` | issue | Collapse closed children into one line |
+| `--no-ancestors` | issue | Do not show the path from the issue's ancestors |
+| `--state open\|merged\|all` | pr / branch | Which PRs to show (default: open) |
+| `--issues` | pr / branch | Show the issues linked to each PR as its children |
 
-PR は、base と同じ名前の head を持つ PR の子になります。付け先に PR がない branch は独立した根の節点になり、既定の branch 以外には `（PR なし）` が付きます。親の節点がそのまま base になっている PR（PR tree のほとんどの PR）には head だけを出し、それ以外（Issue tree の PR など）には `head → base` を出します。
+A PR becomes a child of the PR whose head has the same name as its base. A branch with no PR to attach to becomes a root node of its own, marked `（PR なし）` ("no PR") unless it is the default branch. When a PR's parent node is its base (most PRs in a PR tree), only its head is shown; otherwise (for example, PRs in an issue tree) `head → base` is shown.
 
-![gh tree pr --state all の出力。stack の PR が base と head でつながり、Epic branch が根になる](docs/images/pr-tree.png)
+![Output of gh tree pr --state all: stacked PRs connected through their base and head branches, with an epic branch as a root](docs/images/pr-tree.png)
 
-Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じものです。GitHub は default branch 以外を base にした PR の `Fixes #N` を紐づけとして扱わないため、Epic branch などに向けた PR を Issue tree に出すには、Web UI の Development 欄で手で紐づけてください。
+The PRs linked to an issue are the same ones GitHub shows in the issue's Development section. GitHub does not treat `Fixes #N` in a PR as a link unless the PR targets the default branch, so to show a PR that targets an epic branch (or any other branch) in an issue tree, link it by hand in the Development section of the web UI.
 
-Issue の状態は、`open`・`reopened`・`completed`・`closed`（理由なし）・`not planned`・`duplicate` と出します。完了数（`1/4`）は状態の横に付けます。
+Issue states are shown as `open`, `reopened`, `completed`, `closed` (no reason given), `not planned`, and `duplicate`. Sub-issue progress (`1/4`) appears next to the state.
 
-ターミナルに出すときは、Issue と PR の番号とタイトルが GitHub へのリンク（OSC 8）になり、Cmd+クリック（ターミナルによっては Ctrl+クリック）で開けます。対応していないターミナルではただの文字として表示されます。tmux では `set -as terminal-features ",*:hyperlinks"` が要ります。パイプやリダイレクトに出すときはリンクを付けません。
+In a terminal, issue and PR numbers and titles are links to GitHub (OSC 8): Cmd+click (Ctrl+click in some terminals) opens them. Terminals without hyperlink support show plain text. In tmux, set `set -as terminal-features ",*:hyperlinks"`. Output sent to a pipe or a file has no links.
 
-ターミナルの幅に収まらないときも、情報は省かずに行を増やします。まずタイトルを列の中で折り返し、次に PR の `head → base` を PR の下の行に移します。それでも列の幅が足りない節点は、タイトルを幅いっぱいに出し、その下の行に状態と詳細を移します（節点の多くがそうなるときは全節点をこの形にそろえます）。節点の続きの行は子の行より深く字下げするので、子と見分けられます。パイプやリダイレクトに出すときは折り返しません。
+When the tree does not fit the terminal width, nothing is dropped; lines are added instead. Titles first wrap within their column, then each PR's `head → base` moves to a line below the PR. A node whose column would still be too narrow shows its title across the full width with its state and details on the lines below (when most nodes are like that, every node takes this form). A node's continuation lines are indented deeper than its children, so they cannot be mistaken for children. Output sent to a pipe or a file is not wrapped.
 
-Issue に親があるときは、一番上の祖先から指定した Issue（`▶` 付き）までの経路を上に表示します。経路にない子は `他 N件` とまとめます。
+When an issue has a parent, the path from the topmost ancestor down to the requested issue (marked `▶`) is shown above it. Children off that path are folded into a `他 N件` ("N more") line.
 
-<img src="docs/images/narrow.png" width="530" alt="幅 52 のターミナルで gh tree issue 3 を出した例。祖先の経路と、折り返したタイトル・branch">
+<img src="docs/images/narrow.png" width="530" alt="gh tree issue 3 in a 52-column terminal: the ancestor path, with wrapped titles and branches">
 
-既定では状態や PR、branch を Nerd Fonts のアイコンで描きます。次の例は、どの環境でも読めるよう `--no-icons` で出したものです。
+By default, states, PRs, and branches are drawn with Nerd Fonts icons. The examples below use `--no-icons` so they read anywhere.
 
 ```
 $ gh tree issue 1244 --no-icons
-#1244 [Epic] Telemetryを判断起点で作り直す  ● open 1/4
-├─ #1245 Bricks の Progression Funnel       ✓ completed
-│  └─ PR #1248 Funnel                       merged       feature/1245 → epic/1244
-└─ #1254 削除と待機イベントの一本化         ● open
-   └─ PR #1257 Unify delete                 open         feature/1254 → epic/1244
+#1244 [Epic] Rebuild telemetry          ● open 1/4
+├─ #1245 Progression funnel for Bricks  ✓ completed
+│  └─ PR #1248 Funnel                   merged       feature/1245 → epic/1244
+└─ #1254 Unify delete and wait events   ● open
+   └─ PR #1257 Unify delete             open         feature/1254 → epic/1244
 
-$ gh tree issue 1244 --no-icons        # 幅 40 のターミナル
-#1244 [Epic] Telemetryを判   ● open 1/4
-│    断起点で作り直す
-├─ #1245 Bricks の Progression Funnel
+$ gh tree issue 1244 --no-icons        # in a 40-column terminal
+#1244 [Epic] Rebuild         ● open 1/4
+│    telemetry
+├─ #1245 Progression funnel for Bricks
 │  │    ✓ completed
 │  └─ PR #1248 Funnel        merged
 │          feature/1245 → epic/1244
-└─ #1254 削除と待機イベントの一本化
+└─ #1254 Unify delete and wait events
    │    ● open
    └─ PR #1257 Unify delete  open
            feature/1254 → epic/1244
@@ -79,7 +81,7 @@ epic/1244                 （PR なし）
 
 ## JSON
 
-`--json` は tree の表示と同じ入れ子の JSON を出します。先頭の `schemaVersion` は、項目の名前や形を変えたときにだけ上がります。項目の定義は [`internal/model/model.go`](internal/model/model.go) の `Document` と `Node` です。
+`--json` prints JSON nested the same way as the tree. The leading `schemaVersion` changes only when a field is renamed or changes shape. The fields are defined by `Document` and `Node` in [`internal/model/model.go`](internal/model/model.go).
 
 ```
 $ GH_REPO=cli/cli gh tree pr 9847 --json
@@ -110,18 +112,18 @@ $ GH_REPO=cli/cli gh tree pr 9847 --json
 }
 ```
 
-## 必要な権限
+## Permissions
 
-`gh` の認証をそのまま使います。必要な scope は `repo` です。足りないときは `gh auth refresh -s repo` で追加します。
+gh-tree uses your existing `gh` authentication. It needs the `repo` scope; if it is missing, add it with `gh auth refresh -s repo`.
 
-## 対象のリポジトリ
+## Target repository
 
-カレントディレクトリの git リポジトリが対象です。環境変数 `GH_REPO`（`owner/name`）があればそちらを優先します。`-R` はありません。
+gh-tree works on the git repository in the current directory. The `GH_REPO` environment variable (`owner/name`) takes precedence when set. There is no `-R` flag.
 
 ```sh
 GH_REPO=cli/cli gh tree pr
 ```
 
-## ライセンス
+## License
 
 [MIT](LICENSE)
