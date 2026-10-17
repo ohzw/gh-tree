@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A [gh](https://cli.github.com/) extension that shows how GitHub issues, pull requests, and branches relate to each other (sub-issue parents and children, the PRs linked to each issue, and which branch each PR merges into) as a tree in your terminal, along with the state of each one. It does not show the file tree of a repository, and it is unrelated to the npm package gh-tree ([mgks/GitHubTree](https://github.com/mgks/GitHubTree)).
+A [gh](https://cli.github.com/) extension that shows how GitHub issues, pull requests, and branches relate to each other (sub-issue parents and children, the PRs linked to each issue, and which branch each PR merges into) as a tree in your terminal, along with the state of each one. It does not show the file tree of a repository.
 
 ![Output of gh tree issue 1: an epic's sub-issues and the PRs linked to each, shown as a tree with their states](docs/images/issue-tree.png)
 

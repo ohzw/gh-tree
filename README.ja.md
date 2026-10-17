@@ -2,7 +2,7 @@
 
 [English](README.md) | 日本語
 
-GitHub の Issue・PR・branch の関係（Sub-issue の親子、Issue に紐づいた PR、PR の merge 先のつながり）と、それぞれの状態をターミナルに tree で表示する [gh](https://cli.github.com/) の extension です。リポジトリのファイル構成の tree を表示するツールではありません。npm の同名パッケージ gh-tree（[mgks/GitHubTree](https://github.com/mgks/GitHubTree)）とは無関係です。
+GitHub の Issue・PR・branch の関係（Sub-issue の親子、Issue に紐づいた PR、PR の merge 先のつながり）と、それぞれの状態をターミナルに tree で表示する [gh](https://cli.github.com/) の extension です。リポジトリのファイル構成の tree を表示するツールではありません。
 
 ![gh tree issue 1 の出力。Epic の Sub-issue と、それぞれに紐づいた PR が状態とともに tree で並ぶ](docs/images/issue-tree.png)
 
