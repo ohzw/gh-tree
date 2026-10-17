@@ -2,6 +2,8 @@
 
 GitHub の Issue・PR・branch の関係（Sub-issue の親子、Issue に紐づいた PR、PR の merge 先のつながり）と、それぞれの状態をターミナルに tree で表示する [gh](https://cli.github.com/) の extension です。リポジトリのファイル構成の tree を表示するツールではありません。npm の同名パッケージ gh-tree（[mgks/GitHubTree](https://github.com/mgks/GitHubTree)）とは無関係です。
 
+![gh tree issue 1 の出力。Epic の Sub-issue と、それぞれに紐づいた PR が状態とともに tree で並ぶ](docs/images/issue-tree.png)
+
 ## インストール
 
 ```sh
@@ -32,6 +34,8 @@ gh tree                              ヘルプを表示する
 
 PR は、base と同じ名前の head を持つ PR の子になります。付け先に PR がない branch は独立した根の節点になり、既定の branch 以外には `（PR なし）` が付きます。親の節点がそのまま base になっている PR（PR tree のほとんどの PR）には head だけを出し、それ以外（Issue tree の PR など）には `head → base` を出します。
 
+![gh tree pr --state all の出力。stack の PR が base と head でつながり、Epic branch が根になる](docs/images/pr-tree.png)
+
 Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じものです。GitHub は default branch 以外を base にした PR の `Fixes #N` を紐づけとして扱わないため、Epic branch などに向けた PR を Issue tree に出すには、Web UI の Development 欄で手で紐づけてください。
 
 Issue の状態は、`open`・`reopened`・`completed`・`closed`（理由なし）・`not planned`・`duplicate` と出します。完了数（`1/4`）は状態の横に付けます。
@@ -41,6 +45,8 @@ Issue の状態は、`open`・`reopened`・`completed`・`closed`（理由なし
 ターミナルの幅に収まらないときも、情報は省かずに行を増やします。まずタイトルを列の中で折り返し、次に PR の `head → base` を PR の下の行に移します。それでも列の幅が足りない節点は、タイトルを幅いっぱいに出し、その下の行に状態と詳細を移します（節点の多くがそうなるときは全節点をこの形にそろえます）。節点の続きの行は子の行より深く字下げするので、子と見分けられます。パイプやリダイレクトに出すときは折り返しません。
 
 Issue に親があるときは、一番上の祖先から指定した Issue（`▶` 付き）までの経路を上に表示します。経路にない子は `他 N件` とまとめます。
+
+<img src="docs/images/narrow.png" width="530" alt="幅 52 のターミナルで gh tree issue 3 を出した例。祖先の経路と、折り返したタイトル・branch">
 
 既定では状態や PR、branch を Nerd Fonts のアイコンで描きます。次の例は、どの環境でも読めるよう `--no-icons` で出したものです。
 
