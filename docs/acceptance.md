@@ -57,6 +57,8 @@ PASS 8、PARTIAL 2、FAIL 0。追加で確認したフラグ（`--depth`、`--hi
 
 branch: `main`（既定）、`develop`（`main` から）、`epic/1-telemetry`（`develop` から。Epic PR なし）、`feature/*`（`epic/1-telemetry` から）、`stack/a`（`develop` から）→ `stack/b` → `stack/c`。
 
+#16 → #17 → #18 は、2026-10-17 に Stacks API（`POST /repos/{owner}/{repo}/stacks`）で stack #22（base `develop`）として登録した。GraphQL の `PullRequest.stack` は `{number: 22, size: 3, baseRefName: "develop"}`、`stackEntry.position` は #16 から順に 1、2、3。登録の直後は数秒だけ `null` が返った。ほかの PR はどの stack にも属さない。
+
 #13、#14、#15、#21 の紐づけは、いったん base を `main` にして keyword を効かせ、その後で base を `epic/1-telemetry` に戻して作った。base を戻しても紐づけは残る（`closingIssuesReferences` で確認）。#15 は reopen → base 変更 → close、#21 は `main` 向けで作成 → base 変更 → merge の順。
 
 ### ohzw/gh-tree-fixture-other（private、既定 branch `main`）
@@ -417,6 +419,43 @@ gh-tree: pull request #1 not found in ohzw/gh-tree-fixture
 $ gh tree branch nope
 gh-tree: branch "nope" not found: no pull request targets it
 ```
+
+## stack の印（2026-10-18 に追加で確認）
+
+上の記録より後に入れた機能なので、作業ツリーの最新で `/tmp/ght-acc` を再ビルドして確認した。fixture の stack #22（#16 → #17 → #18）を使う。
+
+```
+$ gh tree pr 17 --no-icons
+develop                  （PR なし）
+└─ PR #16 Stack A        open         stack/a  ⧉ 1/3
+   └─ PR #17 Stack B     open         stack/b  ⧉ 2/3
+      └─ PR #18 Stack C  open         stack/c  ⧉ 3/3
+
+$ gh tree pr --no-icons        # stack に属さない PR には印が付かない
+develop                                    （PR なし）
+└─ PR #16 Stack A                          open         stack/a                  ⧉ 1/3
+   └─ PR #17 Stack B                       open         stack/b                  ⧉ 2/3
+      └─ PR #18 Stack C                    open         stack/c                  ⧉ 3/3
+epic/1-telemetry                           （PR なし）
+├─ PR #13 Unify delete and wait events     open         feature/3-unify-events
+├─ PR #14 MatchBricksReward sender revert  draft        feature/4-reward-revert
+└─ PR #19 Manual link PR                   open         feature/11-manual-link
+main
+└─ PR #20 Delete event schema              open         feature/7-schema
+
+$ gh tree pr 17 --no-icons     # 幅 36 のターミナル。head と一緒に印も下の行に移る
+develop                  （PR なし）
+└─ PR #16 Stack A        open
+   │    stack/a  ⧉ 1/3
+   └─ PR #17 Stack B     open
+      │    stack/b  ⧉ 2/3
+      └─ PR #18 Stack C  open
+              stack/c  ⧉ 3/3
+```
+
+- 位置と本数は `stackEntry.position` と `stack.size` のとおり。印は head の後ろで1列にそろう。
+- アイコン表示では `⧉` の代わりに Octicons の versions が出る。
+- `--json` では、#16〜#18 が `"stack": {"number": 22, "size": 3, "position": 1〜3, "base": "develop"}` を持ち、stack に属さない #13 には `stack` がない。
 
 ## 性能（参考）
 

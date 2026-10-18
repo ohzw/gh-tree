@@ -36,6 +36,8 @@ gh tree                              ヘルプを表示する
 
 PR は、base と同じ名前の head を持つ PR の子になります。付け先に PR がない branch は独立した根の節点になり、既定の branch 以外には `（PR なし）` が付きます。親の節点がそのまま base になっている PR（PR tree のほとんどの PR）には head だけを出し、それ以外（Issue tree の PR など）には `head → base` を出します。
 
+GitHub の [stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs) に登録された stack の PR には、head の後ろに stack の中の位置と本数（`⧉ 2/3`。アイコン表示では Octicons の versions）を付けます。branch の名前でつながっているだけで stack に登録されていない PR には付けません。`--json` では、それらの PR に `stack`（`number`・`size`・`position`・`base`）が入ります。
+
 ![gh tree pr --state all の出力。stack の PR が base と head でつながり、Epic branch が根になる](docs/images/pr-tree.png)
 
 Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じものです。GitHub は default branch 以外を base にした PR の `Fixes #N` を紐づけとして扱わないため、Epic branch などに向けた PR を Issue tree に出すには、Web UI の Development 欄で手で紐づけてください。

@@ -65,12 +65,25 @@ type Node struct {
 	// Focus marks the requested issue when its ancestors are shown above it.
 	Focus bool `json:"focus,omitempty"`
 
+	// Stack is the GitHub stacked-PR stack a PR is registered in. Nil for
+	// PRs in no stack, even when their branches chain by base and head.
+	Stack *Stack `json:"stack,omitempty"`
+
 	Children []*Node `json:"children"`
 }
 
 type Progress struct {
 	Completed int `json:"completed"`
 	Total     int `json:"total"`
+}
+
+// Stack is a PR's place in a registered stack (PullRequest.stack and
+// stackEntry).
+type Stack struct {
+	Number   int    `json:"number"`   // repository-scoped stack number
+	Size     int    `json:"size"`     // PRs in the stack
+	Position int    `json:"position"` // 1 is closest to Base
+	Base     string `json:"base"`     // the branch the whole stack targets
 }
 
 // IssueRef is an issue as seen from a PR's closingIssuesReferences or as the
@@ -115,4 +128,5 @@ type PR struct {
 	CreatedAt         time.Time
 	Labels            []string
 	ClosingIssues     []IssueRef
+	Stack             *Stack // nil when not in a registered stack
 }

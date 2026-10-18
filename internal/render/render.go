@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -81,6 +82,7 @@ type row struct {
 	main   []seg  // identifier, title, labels
 	state  []seg  // state word, and an issue's progress
 	extra  []seg  // a PR's head (→ base)
+	stack  []seg  // a PR's place in its registered stack
 }
 
 func segsWidth(ss []seg) int {
@@ -94,7 +96,7 @@ func segsWidth(ss []seg) int {
 // Text writes roots as box-drawing trees with columns aligned across all
 // roots. Nothing is truncated. With opt.Width > 0 it narrows in steps:
 //  1. the main column (identifier, title, labels) wraps;
-//  2. PR head → base moves to its own line under the PR;
+//  2. PR head → base and stack badge move to their own line under the PR;
 //  3. a row whose main cell would get narrower than minCellWidth becomes a
 //     card: its main text on full-width lines, then its state and details
 //     on lines of their own. Other rows keep the columns.
@@ -104,11 +106,28 @@ func Text(w io.Writer, roots []*model.Node, opt Options) error {
 		rows = appendRows(rows, root, nil, "", "", opt)
 	}
 
-	var mainW, stateW, extraW int
+	var mainW, stateW, headW, stackW int
 	for _, r := range rows {
 		mainW = max(mainW, ansi.StringWidth(r.prefix)+segsWidth(r.main))
 		stateW = max(stateW, segsWidth(r.state))
-		extraW = max(extraW, segsWidth(r.extra))
+		headW = max(headW, segsWidth(r.extra))
+		stackW = max(stackW, segsWidth(r.stack))
+	}
+	// details joins a row's head and stack badge. Aligned, the badges form
+	// a column of their own after the heads.
+	details := func(r row, aligned bool) []seg {
+		if len(r.stack) == 0 {
+			return r.extra
+		}
+		gap := colGap
+		if aligned {
+			gap += strings.Repeat(" ", headW-segsWidth(r.extra))
+		}
+		return slices.Concat(r.extra, []seg{{text: gap}}, r.stack)
+	}
+	extraW := headW
+	if stackW > 0 {
+		extraW += len(colGap) + stackW
 	}
 	colsFor := func(extra int) int {
 		c := len(colGap) + stateW
@@ -205,18 +224,21 @@ func Text(w io.Writer, roots []*model.Node, opt Options) error {
 		full := opt.Width - contW
 		switch {
 		case opt.Width <= 0:
+			r.extra = details(r, true)
 			writeColumns(&b, r, [][]seg{r.main}, mainW, stateW, glyph, paint)
 		case card[i]:
 			writeLines(r.prefix, r.cont, wrap(r.main, opt.Width-prefixW, full))
-			for _, d := range [][]seg{r.state, r.extra} {
+			for _, d := range [][]seg{r.state, details(r, false)} {
 				if len(d) > 0 {
 					writeLines(r.cont, r.cont, wrap(d, full, full))
 				}
 			}
 		default:
 			var below []seg
-			if !inline {
-				below, r.extra = r.extra, nil
+			if inline {
+				r.extra = details(r, true)
+			} else {
+				below, r.extra = details(r, false), nil
 			}
 			writeColumns(&b, r, wrap(r.main, mainW-prefixW, mainW-contW), mainW, stateW, glyph, paint)
 			if len(below) > 0 {
@@ -504,6 +526,7 @@ func nodeRow(n, parent *model.Node, opt Options) row {
 			main:  append([]seg{{text: withIcon(icon, ref(n, repo, "")), tone: t, link: link}, {text: title(n.Title), tone: toneGray, link: link}}, labelSegs(n.Labels, g)...),
 			state: []seg{{text: state, tone: t}},
 			extra: extra,
+			stack: stackSegs(n.Stack, g),
 		}
 	case model.KindBranch:
 		r := row{main: append([]seg{{text: withIcon(g.branch, n.Name), tone: toneBranch, bold: true}}, labelSegs(n.Labels, g)...)}
@@ -514,6 +537,16 @@ func nodeRow(n, parent *model.Node, opt Options) row {
 	default:
 		return row{main: []seg{{text: string(n.Kind)}}}
 	}
+}
+
+// stackSegs is the badge of a PR registered in a stack: its position and
+// the stack's size ("⧉ 2/3"). The stack number is left to --json: it shares
+// the numbering of issues and PRs, so "#22" would read as one.
+func stackSegs(s *model.Stack, g glyphs) []seg {
+	if s == nil {
+		return nil
+	}
+	return []seg{{text: withIcon(g.stack, fmt.Sprintf("%d/%d", s.Position, s.Size)), tone: toneLabel}}
 }
 
 // linkID is the OSC 8 id for url: hex, so it holds no ':' or ';'.
@@ -544,14 +577,14 @@ func parentIsBase(n, parent *model.Node) bool {
 type glyphs struct {
 	issueOpen, issueReopened, issueClosed, issueNotPlanned, issueDuplicate string
 	prOpen, prDraft, prMerged, prClosed                                    string
-	branch, repo, label, tasklist, hiddenClosed, omitted                   string
+	branch, repo, label, tasklist, hiddenClosed, omitted, stack            string
 }
 
 var (
 	plainGlyphs = glyphs{
 		issueOpen: "●", issueReopened: "●", issueClosed: "✓", issueNotPlanned: "⊘", issueDuplicate: "⊘",
 		prOpen: "PR", prDraft: "PR", prMerged: "PR", prClosed: "PR",
-		hiddenClosed: "…", omitted: "…",
+		hiddenClosed: "…", omitted: "…", stack: "⧉",
 	}
 	// nerdGlyphs are GitHub's Octicons as packaged in Nerd Fonts (nf-oct-*).
 	// Each is followed by a space so a font drawing it two cells wide
@@ -572,6 +605,7 @@ var (
 		tasklist:        "\uf4a0", // oct-tasklist
 		hiddenClosed:    "\uf41d", // oct-issue_closed
 		omitted:         "\uf51e", // oct-stack
+		stack:           "\uf454", // oct-versions (oct-stack already marks omitted children)
 	}
 )
 

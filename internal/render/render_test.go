@@ -187,6 +187,8 @@ func TestTextIconsPerState(t *testing.T) {
 	labeled.Labels = []string{"bug", "p1"}
 	folded := issue(3, "Folded", "OPEN", "")
 	folded.HiddenClosed, folded.OmittedChildren = 2, 4
+	stacked := pr(1, "a", "OPEN", false, "h", "main")
+	stacked.Stack = &model.Stack{Number: 9, Size: 3, Position: 2, Base: "main"}
 
 	tests := []struct {
 		name string
@@ -207,6 +209,7 @@ func TestTextIconsPerState(t *testing.T) {
 		{"other repo issue", other, []string{"\uf401 other/lib#7"}},
 		{"other repo pr has only the pr icon", otherPR, []string{"\uf407 other/lib#8"}},
 		{"progress", progress, []string{"\uf4a0 1/3"}},
+		{"stack", stacked, []string{"\uf454 2/3"}},
 		{"labels", labeled, []string{"\uf412 bug \uf412 p1"}},
 		{"folded children", folded, []string{"\uf41d closed 2件", "\uf51e 他 4件"}},
 	}
@@ -305,9 +308,53 @@ func TestTextNoColorHasNoEscapes(t *testing.T) {
 	}
 }
 
+func TestTextStackBadge(t *testing.T) {
+	tree := func() []*model.Node {
+		inStack := func(n *model.Node, pos int) *model.Node {
+			n.Stack = &model.Stack{Number: 22, Size: 3, Position: pos, Base: "develop"}
+			return n
+		}
+		c := inStack(pr(18, "Stack C", "OPEN", false, "stack/c", "stack/b"), 3)
+		other := pr(23, "Try another way", "OPEN", false, "spike/b-alt", "stack/b")
+		b := inStack(pr(17, "Stack B", "OPEN", false, "stack/b", "stack/a", c, other), 2)
+		a := inStack(pr(16, "Stack A", "OPEN", false, "stack/a", "develop", b), 1)
+		return []*model.Node{
+			{Kind: model.KindBranch, Name: "develop", Children: []*model.Node{a}},
+			{Kind: model.KindBranch, Name: "main", Children: []*model.Node{pr(20, "Schema", "OPEN", false, "feature/7-schema", "main")}},
+		}
+	}
+	// Only PRs registered in a stack get a badge, in a column after the
+	// heads; #23 sits on stack/b by its branches but is not in the stack.
+	assertGolden(t, renderText(t, tree(), Options{Repo: repo, DefaultBranch: "main"}), `
+develop                          （PR なし）
+└─ PR #16 Stack A                open         stack/a           ⧉ 1/3
+   └─ PR #17 Stack B             open         stack/b           ⧉ 2/3
+      ├─ PR #18 Stack C          open         stack/c           ⧉ 3/3
+      └─ PR #23 Try another way  open         spike/b-alt
+main
+└─ PR #20 Schema                 open         feature/7-schema
+`)
+	// When details move under the PR, the badge goes with the head.
+	assertGolden(t, renderText(t, tree(), Options{Repo: repo, DefaultBranch: "main", Width: 44}), `
+develop                          （PR なし）
+└─ PR #16 Stack A                open
+   │    stack/a  ⧉ 1/3
+   └─ PR #17 Stack B             open
+      │    stack/b  ⧉ 2/3
+      ├─ PR #18 Stack C          open
+      │       stack/c  ⧉ 3/3
+      └─ PR #23 Try another way  open
+              spike/b-alt
+main
+└─ PR #20 Schema                 open
+        feature/7-schema
+`)
+}
+
 func TestJSON(t *testing.T) {
 	root := issue(1, "Root", "OPEN", "", pr(2, "Fix <thing>", "OPEN", false, "fix", "main"))
 	root.Progress = &model.Progress{Completed: 0, Total: 0}
+	root.Children[0].Stack = &model.Stack{Number: 22, Size: 3, Position: 2, Base: "main"}
 	var b bytes.Buffer
 	if err := JSON(&b, repo, []*model.Node{root}); err != nil {
 		t.Fatal(err)
@@ -336,6 +383,12 @@ func TestJSON(t *testing.T) {
           "state": "OPEN",
           "base": "main",
           "head": "fix",
+          "stack": {
+            "number": 22,
+            "size": 3,
+            "position": 2,
+            "base": "main"
+          },
           "children": []
         }
       ]

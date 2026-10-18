@@ -11,7 +11,7 @@ import (
 const (
 	labelsSelection   = `labels(first:20){nodes{name}}`
 	issueRefSelection = `number title url state stateReason repository{nameWithOwner} ` + labelsSelection
-	prCoreSelection   = `id number title url state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt repository{nameWithOwner}`
+	prCoreSelection   = `id number title url state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt repository{nameWithOwner} stack{number size baseRefName} stackEntry{position}`
 
 	prFullFragment = `fragment PRFull on PullRequest{` + prCoreSelection + ` ` + labelsSelection +
 		` closingIssuesReferences(first:10){nodes{` + issueRefSelection + `}}}`
@@ -77,6 +77,12 @@ type rawPR struct {
 	ClosingIssuesReferences struct {
 		Nodes []*rawIssueRef
 	}
+	Stack *struct {
+		Number      int
+		Size        int
+		BaseRefName string
+	}
+	StackEntry *struct{ Position int }
 }
 
 func (r rawPR) toModel() model.PR {
@@ -95,6 +101,9 @@ func (r rawPR) toModel() model.PR {
 	}
 	if r.IsCrossRepository && r.HeadRepositoryOwner != nil {
 		pr.HeadOwner = r.HeadRepositoryOwner.Login
+	}
+	if r.Stack != nil && r.StackEntry != nil {
+		pr.Stack = &model.Stack{Number: r.Stack.Number, Size: r.Stack.Size, Position: r.StackEntry.Position, Base: r.Stack.BaseRefName}
 	}
 	for _, issue := range r.ClosingIssuesReferences.Nodes {
 		if issue != nil {

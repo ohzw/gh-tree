@@ -36,6 +36,8 @@ gh tree                              Show help
 
 A PR becomes a child of the PR whose head has the same name as its base. A branch with no PR to attach to becomes a root node of its own, marked `（PR なし）` ("no PR") unless it is the default branch. When a PR's parent node is its base (most PRs in a PR tree), only its head is shown; otherwise (for example, PRs in an issue tree) `head → base` is shown.
 
+A PR registered in a GitHub [stacked pull request](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs) stack gets a badge after its head with its position in the stack and the stack's size (`⧉ 2/3`, or the Octicons versions icon). PRs that only chain by branch name, without a registered stack, get no badge. `--json` adds `stack` (`number`, `size`, `position`, `base`) to those PRs.
+
 ![Output of gh tree pr --state all: stacked PRs connected through their base and head branches, with an epic branch as a root](docs/images/pr-tree.png)
 
 The PRs linked to an issue are the same ones GitHub shows in the issue's Development section. GitHub does not treat `Fixes #N` in a PR as a link unless the PR targets the default branch, so to show a PR that targets an epic branch (or any other branch) in an issue tree, link it by hand in the Development section of the web UI.
