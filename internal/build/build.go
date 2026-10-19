@@ -347,6 +347,7 @@ func prNode(pr model.PR, lf labelFilter) *model.Node {
 		Head:     pr.Head,
 		Labels:   lf.apply(pr.Labels),
 		Stack:    pr.Stack,
+		Diff:     &model.Diff{Additions: pr.Additions, Deletions: pr.Deletions},
 		Children: []*model.Node{},
 	}
 	if pr.IsCrossRepository {

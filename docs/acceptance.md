@@ -457,6 +457,27 @@ develop                  （PR なし）
 - アイコン表示では `⧉` の代わりに Octicons の versions が出る。
 - `--json` では、#16〜#18 が `"stack": {"number": 22, "size": 3, "position": 1〜3, "base": "develop"}` を持ち、stack に属さない #13 には `stack` がない。
 
+## diff の行数（2026-10-19 に追加で確認）
+
+作業ツリーの最新を `/tmp/ght-diff` にビルドし、fixture で確認した。
+
+```
+$ gh tree pr --no-icons --no-color
+develop                                    （PR なし）
+└─ PR #16 Stack A                          open +1 -0   stack/a                  ⧉ 1/3
+   └─ PR #17 Stack B                       open +1 -0   stack/b                  ⧉ 2/3
+      └─ PR #18 Stack C                    open +1 -0   stack/c                  ⧉ 3/3
+epic/1-telemetry                           （PR なし）
+├─ PR #13 Unify delete and wait events     open +1 -0   feature/3-unify-events
+├─ PR #14 MatchBricksReward sender revert  draft +1 -0  feature/4-reward-revert
+└─ PR #19 Manual link PR                   open +1 -0   feature/11-manual-link
+main
+└─ PR #20 Delete event schema              open +4 -0   feature/7-schema
+```
+
+- `gh tree issue 1` でも、Issue に紐づいた PR（merged・closed・draft・別リポジトリの PR を含む）に同じ形で行数が出る。
+- `GH_REPO=cli/cli gh tree pr 9847 --json` は `"diff": {"additions": 17, "deletions": 17}` を持つ。
+
 ## 性能（参考）
 
 `/usr/bin/time -p` の real。fixture の規模は小さい。

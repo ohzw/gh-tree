@@ -54,7 +54,7 @@ pr / branch:
 | `gh tree issue` | Sub-issue を再帰的にたどる。各 Issue に、番号、タイトル、状態（open なら `open`、reopen された open なら `reopened`、closed なら理由の `completed`・`not planned`・`duplicate`、理由がなければ `closed`）、直下の子の完了数（例: `1/4`。状態の横に付ける）を表示する。完了数は `subIssuesSummary` の `completed / total` をそのまま使い、not planned と duplicate で閉じた子も完了に数える。紐づいた PR は、Issue の子の行として子の Issue より先に並べ、状態と head → base を表示する |
 | リポジトリをまたぐ Sub-issue | 別のリポジトリの Issue と PR は `owner/repo#N` と表示する。表示だけで、追加の問い合わせは行わない |
 | Issue の祖先 | 指定した Issue に親があれば、一番上の祖先を根にして、指定した Issue までの経路を既定で表示する。経路上の祖先には、ほかの子を出さずに件数だけ示す（例: `└─ … 他 7件`）。祖先の行には完了数を出し、紐づいた PR は出さない。指定した Issue には行頭に `▶` を付けて太字にする。`--depth` は指定した Issue から数える。`--no-ancestors` で消せる。PR を指定したときは、PR が閉じる Issue の親はたどらない |
-| `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、head を表示する。親の節点が base なので base は出さない。親が base でない PR（循環を切って根に置いた PR など）には head → base を表示する。fork の PR の head は `owner:branch` と表示する。GitHub の stack に登録された PR には、stack の中の位置と本数を表示する（7章） |
+| `gh tree pr` / `gh tree branch` | PR を base と head でつなぐ。付け先に PR がない branch（`develop` や、Epic PR がまだない Epic branch）は branch を節点にする。各 PR に、番号、タイトル、状態、追加と削除の行数、head を表示する。親の節点が base なので base は出さない。親が base でない PR（循環を切って根に置いた PR など）には head → base を表示する。fork の PR の head は `owner:branch` と表示する。GitHub の stack に登録された PR には、stack の中の位置と本数を表示する（7章） |
 | `gh tree pr <number>` | 指定した PR から根の branch までの経路と、その PR より下の木を表示する。兄弟の PR は表示しない |
 | `gh tree <number>` | 番号から Issue か PR かを判定し、該当するサブコマンドとして動く |
 | 色分け | Issue と PR の状態ごとに、GitHub の Web UI と同じ系統の色を付ける（7章） |
@@ -106,6 +106,7 @@ epic/#1244_telemetry-rebuild               （PR なし）
 - **狭いターミナル:** 情報は省かずに行を増やす。タイトルを列の中で折り返し、次に PR の head → base を PR の下の行に移し、それでも列の幅が足りない節点はタイトルを幅いっぱいに出して状態と詳細を下の行に移す（多くの節点がそうなるときは全節点をそろえる）。節点の続きの行は子の行より深く字下げする。アイコンは語から離さず、CJK の1文字だけを最後の行に残さない。
 - **リンク:** ターミナルに出すときは、Issue と PR の番号とタイトルを OSC 8 のハイパーリンクにして GitHub の URL を開けるようにする。リンクは行ごとに閉じ、罫線・ラベル・状態には付けない。パイプやリダイレクトには付けない。
 - **stack:** GitHub の stacked pull requests に登録された PR（GraphQL の `PullRequest.stack` と `stackEntry`）には、head の後ろに位置と本数の印（`⧉ 2/3`）を付け、印の列をそろえる。PR の下の行に head を移すときは印も一緒に移す。stack の番号は Issue や PR と同じ並びの番号で `#N` と読み違えやすいため、表示には出さず `--json` の `stack.number` にだけ入れる。登録されていない PR には印を付けない（tree の形は登録の有無にかかわらず base と head で決まる）。
+- **diff の行数:** すべての PR に、状態の後ろに追加と削除の行数（GraphQL の `PullRequest.additions` と `deletions`）を `+212 -38` の形で付ける。追加は緑、削除は赤。Issue の完了数と同じく状態の列に入れるので、head の列はそろったまま。状態の列を折り返すときも、2つの数は離さない。
 - **PR の状態の色:** open は緑、draft は灰、merged は紫、closed（merge なし）は赤。
 - **PR がない branch:** Epic PR がない branch は、その branch がどこから生えているかを API から知る手段がないため、独立した根にする。`gh tree branch develop` には出ず、`gh tree branch epic/#1244_…` で見る。配下に PR もない branch は表示しない。
 
@@ -127,9 +128,9 @@ epic/#1244_telemetry-rebuild               （PR なし）
 - **言語:** Go と `cli/go-gh`（認証、リポジトリの判定、GraphQL クライアント、表示幅と色の扱い）。表示には `lipgloss` などを使う。
 - **API:**
   - Issue: `state`、`stateReason`（`enableDuplicate` は付けない。削除予定の引数で、なくても DUPLICATE が返る）、`subIssues`、`subIssuesSummary`、`closedByPullRequestsReferences(userLinkedOnly:false, includeClosedPrs:true)`、`labels`、`parent`（根の問い合わせで5段まで入れ子に取り、それより上は node id で追加取得する）
-  - PR: `pullRequests(states:…) { number title state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt stack{number size baseRefName} stackEntry{position} closingIssuesReferences{ number repository{nameWithOwner} } labels }`。`headRepository` は fork が消えると null になるので使わない
+  - PR: `pullRequests(states:…) { number title state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt stack{number size baseRefName} stackEntry{position} additions deletions closingIssuesReferences{ number repository{nameWithOwner} } labels }`。`headRepository` は fork が消えると null になるので使わない
 - **データの持ち方:** 節点を共通の形にし、表示する tree と同じ入れ子で持ちます。紐づいた PR や Issue も、`kind` を付けて `children` に入れます。
-  - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, headOwner（fork の PR だけ）, stack（登録された stack の PR だけ）, name（branch の名前）, labels, progress, hiddenClosed（--hide-closed で畳んだ数）, omittedChildren（祖先の、経路にない子の数）, focus（祖先を出したときの指定した Issue）, children[]`。定義は `internal/model/model.go`
+  - 項目: `kind（issue | pr | branch）, repo, number, title, url, state, stateReason, isDraft, base, head, headOwner（fork の PR だけ）, stack（登録された stack の PR だけ）, diff（PR の additions と deletions）, name（branch の名前）, labels, progress, hiddenClosed（--hide-closed で畳んだ数）, omittedChildren（祖先の、経路にない子の数）, focus（祖先を出したときの指定した Issue）, children[]`。定義は `internal/model/model.go`
   - JSON はこの形をそのまま出し、先頭に `schemaVersion` を置きます。エージェントが読む前提なので、項目の名前は変えない約束にします。形を変えるときは `schemaVersion` を上げます。
 - **作りの分け方:** 取得（Issue と PR の取得部分）、組み立て（親子や base と head で tree を作る）、表示（tree / JSON）の3つに分ける。表示の部分は Issue と PR で共通にする。
 

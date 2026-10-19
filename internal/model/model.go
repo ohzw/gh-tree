@@ -69,6 +69,9 @@ type Node struct {
 	// PRs in no stack, even when their branches chain by base and head.
 	Stack *Stack `json:"stack,omitempty"`
 
+	// Diff is a PR's changed line counts. Nil for issues and branches.
+	Diff *Diff `json:"diff,omitempty"`
+
 	Children []*Node `json:"children"`
 }
 
@@ -84,6 +87,13 @@ type Stack struct {
 	Size     int    `json:"size"`     // PRs in the stack
 	Position int    `json:"position"` // 1 is closest to Base
 	Base     string `json:"base"`     // the branch the whole stack targets
+}
+
+// Diff is the line counts of a PR's changes (PullRequest.additions and
+// deletions), as GitHub shows them on the PR.
+type Diff struct {
+	Additions int `json:"additions"`
+	Deletions int `json:"deletions"`
 }
 
 // IssueRef is an issue as seen from a PR's closingIssuesReferences or as the
@@ -129,4 +139,6 @@ type PR struct {
 	Labels            []string
 	ClosingIssues     []IssueRef
 	Stack             *Stack // nil when not in a registered stack
+	Additions         int
+	Deletions         int
 }

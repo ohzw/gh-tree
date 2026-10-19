@@ -11,7 +11,7 @@ import (
 const (
 	labelsSelection   = `labels(first:20){nodes{name}}`
 	issueRefSelection = `number title url state stateReason repository{nameWithOwner} ` + labelsSelection
-	prCoreSelection   = `id number title url state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt repository{nameWithOwner} stack{number size baseRefName} stackEntry{position}`
+	prCoreSelection   = `id number title url state isDraft baseRefName headRefName isCrossRepository headRepositoryOwner{login} createdAt repository{nameWithOwner} stack{number size baseRefName} stackEntry{position} additions deletions`
 
 	prFullFragment = `fragment PRFull on PullRequest{` + prCoreSelection + ` ` + labelsSelection +
 		` closingIssuesReferences(first:10){nodes{` + issueRefSelection + `}}}`
@@ -83,6 +83,8 @@ type rawPR struct {
 		BaseRefName string
 	}
 	StackEntry *struct{ Position int }
+	Additions  int
+	Deletions  int
 }
 
 func (r rawPR) toModel() model.PR {
@@ -98,6 +100,8 @@ func (r rawPR) toModel() model.PR {
 		IsCrossRepository: r.IsCrossRepository,
 		CreatedAt:         r.CreatedAt,
 		Labels:            r.Labels.names(),
+		Additions:         r.Additions,
+		Deletions:         r.Deletions,
 	}
 	if r.IsCrossRepository && r.HeadRepositoryOwner != nil {
 		pr.HeadOwner = r.HeadRepositoryOwner.Login

@@ -38,6 +38,8 @@ A PR becomes a child of the PR whose head has the same name as its base. A branc
 
 A PR registered in a GitHub [stacked pull request](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs) stack gets a badge after its head with its position in the stack and the stack's size (`⧉ 2/3`, or the Octicons versions icon). PRs that only chain by branch name, without a registered stack, get no badge. `--json` adds `stack` (`number`, `size`, `position`, `base`) to those PRs.
 
+Each PR shows its added and deleted line counts after its state (`merged +212 -38`), the same numbers GitHub shows on the PR. `--json` has them as `diff` (`additions`, `deletions`).
+
 ![Output of gh tree pr --state all: stacked PRs connected through their base and head branches, with an epic branch as a root](docs/images/pr-tree.png)
 
 The PRs linked to an issue are the same ones GitHub shows in the issue's Development section. GitHub does not treat `Fixes #N` in a PR as a link unless the PR targets the default branch, so to show a PR that targets an epic branch (or any other branch) in an issue tree, link it by hand in the Development section of the web UI.
@@ -58,27 +60,29 @@ By default, states, PRs, and branches are drawn with Nerd Fonts icons. The examp
 $ gh tree issue 1244 --no-icons
 #1244 [Epic] Rebuild telemetry          ● open 1/4
 ├─ #1245 Progression funnel for Bricks  ✓ completed
-│  └─ PR #1248 Funnel                   merged       feature/1245 → epic/1244
+│  └─ PR #1248 Funnel                   merged +212 -38  feature/1245 → epic/1244
 └─ #1254 Unify delete and wait events   ● open
-   └─ PR #1257 Unify delete             open         feature/1254 → epic/1244
+   └─ PR #1257 Unify delete             open +86 -140    feature/1254 → epic/1244
 
 $ gh tree issue 1244 --no-icons        # in a 40-column terminal
-#1244 [Epic] Rebuild         ● open 1/4
-│    telemetry
+#1244 [Epic] Rebuild telemetry
+│    ● open 1/4
 ├─ #1245 Progression funnel for Bricks
 │  │    ✓ completed
-│  └─ PR #1248 Funnel        merged
+│  └─ PR #1248 Funnel
+│          merged +212 -38
 │          feature/1245 → epic/1244
 └─ #1254 Unify delete and wait events
    │    ● open
-   └─ PR #1257 Unify delete  open
+   └─ PR #1257 Unify delete
+           open +86 -140
            feature/1254 → epic/1244
 
 $ gh tree pr --no-icons
 main
-└─ PR #1260 Release 2.4   open         release/2.4
+└─ PR #1260 Release 2.4   open +5 -2     release/2.4
 epic/1244                 （PR なし）
-└─ PR #1257 Unify delete  open         feature/1254
+└─ PR #1257 Unify delete  open +86 -140  feature/1254
 ```
 
 ## JSON
@@ -106,6 +110,10 @@ $ GH_REPO=cli/cli gh tree pr 9847 --json
           "base": "trunk",
           "head": "shion/9828",
           "headOwner": "Shion1305",
+          "diff": {
+            "additions": 17,
+            "deletions": 17
+          },
           "children": []
         }
       ]

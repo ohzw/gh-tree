@@ -524,7 +524,7 @@ func nodeRow(n, parent *model.Node, opt Options) row {
 		return row{
 			// The PR icon already leads the row, so no repository icon.
 			main:  append([]seg{{text: withIcon(icon, ref(n, repo, "")), tone: t, link: link}, {text: title(n.Title), tone: toneGray, link: link}}, labelSegs(n.Labels, g)...),
-			state: []seg{{text: state, tone: t}},
+			state: append([]seg{{text: state, tone: t}}, diffSegs(n.Diff)...),
 			extra: extra,
 			stack: stackSegs(n.Stack, g),
 		}
@@ -547,6 +547,15 @@ func stackSegs(s *model.Stack, g glyphs) []seg {
 		return nil
 	}
 	return []seg{{text: withIcon(g.stack, fmt.Sprintf("%d/%d", s.Position, s.Size)), tone: toneLabel}}
+}
+
+// diffSegs is a PR's changed line counts beside its state ("+120 -30"),
+// colored as GitHub colors them. The two counts never wrap apart.
+func diffSegs(d *model.Diff) []seg {
+	if d == nil {
+		return nil
+	}
+	return []seg{{text: fmt.Sprintf(" +%d", d.Additions), tone: toneGreen}, {text: fmt.Sprintf("%s-%d", iconSep, d.Deletions), tone: toneRed}}
 }
 
 // linkID is the OSC 8 id for url: hex, so it holds no ':' or ';'.

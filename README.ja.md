@@ -38,6 +38,8 @@ PR は、base と同じ名前の head を持つ PR の子になります。付�
 
 GitHub の [stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs) に登録された stack の PR には、head の後ろに stack の中の位置と本数（`⧉ 2/3`。アイコン表示では Octicons の versions）を付けます。branch の名前でつながっているだけで stack に登録されていない PR には付けません。`--json` では、それらの PR に `stack`（`number`・`size`・`position`・`base`）が入ります。
 
+各 PR には、状態の後ろに追加と削除の行数（`merged +212 -38`）を付けます。GitHub の PR に出る数と同じです。`--json` では `diff`（`additions`・`deletions`）に入ります。
+
 ![gh tree pr --state all の出力。stack の PR が base と head でつながり、Epic branch が根になる](docs/images/pr-tree.png)
 
 Issue に紐づいた PR は、GitHub の Issue の Development 欄と同じものです。GitHub は default branch 以外を base にした PR の `Fixes #N` を紐づけとして扱わないため、Epic branch などに向けた PR を Issue tree に出すには、Web UI の Development 欄で手で紐づけてください。
@@ -58,27 +60,30 @@ Issue に親があるときは、一番上の祖先から指定した Issue（`�
 $ gh tree issue 1244 --no-icons
 #1244 [Epic] Telemetryを判断起点で作り直す  ● open 1/4
 ├─ #1245 Bricks の Progression Funnel       ✓ completed
-│  └─ PR #1248 Funnel                       merged       feature/1245 → epic/1244
+│  └─ PR #1248 Funnel                       merged +212 -38  feature/1245 → epic/1244
 └─ #1254 削除と待機イベントの一本化         ● open
-   └─ PR #1257 Unify delete                 open         feature/1254 → epic/1244
+   └─ PR #1257 Unify delete                 open +86 -140    feature/1254 → epic/1244
 
 $ gh tree issue 1244 --no-icons        # 幅 40 のターミナル
-#1244 [Epic] Telemetryを判   ● open 1/4
-│    断起点で作り直す
+#1244 [Epic] Telemetryを判断起点で作り
+│    直す
+│    ● open 1/4
 ├─ #1245 Bricks の Progression Funnel
 │  │    ✓ completed
-│  └─ PR #1248 Funnel        merged
+│  └─ PR #1248 Funnel
+│          merged +212 -38
 │          feature/1245 → epic/1244
 └─ #1254 削除と待機イベントの一本化
    │    ● open
-   └─ PR #1257 Unify delete  open
+   └─ PR #1257 Unify delete
+           open +86 -140
            feature/1254 → epic/1244
 
 $ gh tree pr --no-icons
 main
-└─ PR #1260 Release 2.4   open         release/2.4
+└─ PR #1260 Release 2.4   open +5 -2     release/2.4
 epic/1244                 （PR なし）
-└─ PR #1257 Unify delete  open         feature/1254
+└─ PR #1257 Unify delete  open +86 -140  feature/1254
 ```
 
 ## JSON
@@ -106,6 +111,10 @@ $ GH_REPO=cli/cli gh tree pr 9847 --json
           "base": "trunk",
           "head": "shion/9828",
           "headOwner": "Shion1305",
+          "diff": {
+            "additions": 17,
+            "deletions": 17
+          },
           "children": []
         }
       ]

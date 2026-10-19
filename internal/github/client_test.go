@@ -126,6 +126,7 @@ func TestPullRequestsMapsFields(t *testing.T) {
 				"createdAt": created.Format(time.RFC3339), "repository": obj{"nameWithOwner": "octo/repo"},
 				"labels": labels(), "closingIssuesReferences": obj{"nodes": []any{}},
 				"stack": obj{"number": 22, "size": 3, "baseRefName": "develop"}, "stackEntry": obj{"position": 2},
+				"additions": 120, "deletions": 30,
 			},
 		)}})
 	})
@@ -147,7 +148,8 @@ func TestPullRequestsMapsFields(t *testing.T) {
 		{
 			Repo: "octo/repo", Number: 13, Title: "Feature", URL: "https://github.com/octo/repo/pull/13",
 			State: "MERGED", Base: "main", Head: "feature", CreatedAt: created,
-			Stack: &model.Stack{Number: 22, Size: 3, Position: 2, Base: "develop"},
+			Stack:     &model.Stack{Number: 22, Size: 3, Position: 2, Base: "develop"},
+			Additions: 120, Deletions: 30,
 		},
 	}
 	if !reflect.DeepEqual(prs, want) {

@@ -351,10 +351,45 @@ main
 `)
 }
 
+func TestTextPRDiff(t *testing.T) {
+	tree := func() []*model.Node {
+		withDiff := func(n *model.Node, add, del int) *model.Node {
+			n.Diff = &model.Diff{Additions: add, Deletions: del}
+			return n
+		}
+		return []*model.Node{issue(1, "Epic", "OPEN", "",
+			withDiff(pr(12, "Big change", "MERGED", false, "feature/a", "main"), 1234, 56),
+			withDiff(pr(13, "Empty", "OPEN", true, "feature/b", "main"), 0, 0),
+		)}
+	}
+	// The counts sit in the state column, so the details stay aligned.
+	assertGolden(t, renderText(t, tree(), Options{Repo: repo}), `
+#1 Epic               ● open
+├─ PR #12 Big change  merged +1234 -56  feature/a → main
+└─ PR #13 Empty       draft +0 -0       feature/b → main
+`)
+	// A card wraps its state line between the state and the counts, never
+	// between the two counts.
+	assertGolden(t, renderText(t, tree(), Options{Repo: repo, Width: 22}), `
+#1 Epic
+│    ● open
+├─ PR #12 Big change
+│       merged
+│       +1234 -56
+│       feature/a
+│       → main
+└─ PR #13 Empty
+        draft +0 -0
+        feature/b
+        → main
+`)
+}
+
 func TestJSON(t *testing.T) {
 	root := issue(1, "Root", "OPEN", "", pr(2, "Fix <thing>", "OPEN", false, "fix", "main"))
 	root.Progress = &model.Progress{Completed: 0, Total: 0}
 	root.Children[0].Stack = &model.Stack{Number: 22, Size: 3, Position: 2, Base: "main"}
+	root.Children[0].Diff = &model.Diff{Additions: 0, Deletions: 0}
 	var b bytes.Buffer
 	if err := JSON(&b, repo, []*model.Node{root}); err != nil {
 		t.Fatal(err)
@@ -388,6 +423,10 @@ func TestJSON(t *testing.T) {
             "size": 3,
             "position": 2,
             "base": "main"
+          },
+          "diff": {
+            "additions": 0,
+            "deletions": 0
           },
           "children": []
         }
